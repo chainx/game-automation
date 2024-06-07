@@ -60,17 +60,10 @@ class game_automation:
         root = window.query_tree().root
         coords = window.translate_coords(root, 0, 0)
 
-        geom_values = {
-            "x": -coords.x,
-            "y": -coords.y,
-            "width": geom.width,
-            "height": geom.height,
-        }
-        
-        return geom_values
+        return (-coords.x, -coords.y, geom.width, geom.height)
 
-    def take_screenshot(self, win_name_filter, region=None):
-        window = [win for win in ewmh.getClientList() if win.get_wm_name() and win_name_filter in win.get_wm_name()]
+    def take_screenshot(self, get_screen_region):
+        window = [win for win in ewmh.getClientList() if self.win_name_filter in win.get_wm_name()]
         if window:
             window = window[0]
         else:
@@ -78,10 +71,9 @@ class game_automation:
             return None, None
 
         geom = self.get_window_geometry(window)
-        region = (geom['x'] + 20, geom['y'] + 50, geom['width'] // 2, geom['height'] // 2)
+        screen_region = get_screen_region(geom)
 
-        screenshot = pyautogui.screenshot(region=region).convert('RGB')
-        return screenshot, region
+        return pyautogui.screenshot(region=screen_region).convert('RGB')
 
     def images_match(self, screenshot, ref_img, threshold=1000):
         width, height = ref_img.size
@@ -97,9 +89,9 @@ class game_automation:
 
         return total_diff < threshold
 
-    def anti_desync(self, win_name_filter, screen_region, ref_image):
+    def anti_desync(self, ref_image, get_screen_region):
         has_desynced = False
-        screenshot, screen_region = self.take_screenshot(win_name_filter, screen_region)
+        screenshot = self.take_screenshot(get_screen_region)
         if self.images_match(ref_image, screenshot):
             self.key_press('s', wait=2.5)
             self.key_press(Key.f1, wait=1)
@@ -109,4 +101,3 @@ class game_automation:
             print('Desync detected!')
             self.has_desynced = True
             self.key_press(Key.f3, wait=1.5)
-        return screen_region

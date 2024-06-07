@@ -1,6 +1,7 @@
 import os
 from pynput.keyboard import Key
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
+import pytesseract
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -23,13 +24,14 @@ vehicle_healing_frequency = 0
 attack_castle = True
 
 def main():
-    Makai_Kingdom(chars_to_summon).run_script()
+    makai_kingdom = Makai_Kingdom(chars_to_summon)
+    makai_kingdom.run_script()
 
 class Makai_Kingdom(game_automation):
     def __init__(self, chars_to_summon):
         super(Makai_Kingdom, self).__init__()
-        self.screen_region = None
         self.chars_to_summon = chars_to_summon
+        self.win_name_filter = win_name_filter
 
         self.enter_castle = ['s', 's', (Key.right, 0.52), (Key.down, 0.1), 's', Key.down, ('s', 1.2)]
         self.reselect_tome = [(Key.left, 0.3), (Key.enter, 0.1)]
@@ -39,15 +41,16 @@ class Makai_Kingdom(game_automation):
         if self.execute_script:
             heal_characters = self.count % character_healing_frequency == 0 if character_healing_frequency > 0 else False
             heal_vehicles = self.count % vehicle_healing_frequency == 0 if vehicle_healing_frequency > 0 else False
-            inputs = self.get_inputs(heal_characters, heal_vehicles)
+            inputs = self.get_BabylonsMessenger_inputs(heal_characters, heal_vehicles)
             self.execute_inputs(inputs)
         else:
             self.count = 0
 
         if self.execute_script:
-            self.screen_region = self.anti_desync(win_name_filter, self.screen_region, ref_image)
+            get_screen_region = lambda geom: (geom[0] + 20, geom[1] + 50, geom[2] // 2, geom[3] // 2)
+            self.screen_region = self.anti_desync(ref_image, get_screen_region)
 
-    def get_inputs(self, heal_characters, heal_vehicles):
+    def get_BabylonsMessenger_inputs(self, heal_characters, heal_vehicles):
         inputs = [] # Starts inside the level
 
         invite_selected, chars_summoned = True, 1
