@@ -1,10 +1,18 @@
 import time
+import os
 import pyautogui
 from pynput.keyboard import Key, Controller, Listener, KeyCode
 from PIL import Image
-import pygetwindow as gw
+from ewmh import EWMH
 
+ewmh = EWMH()
 keyboard = Controller()
+
+# I used different key bindings on Windows and Linux due to conflicts with my key binds on Linux
+# os.name=='nt' => Windows, os.name=='posix' => Linux
+frame_limit_key = Key.f4 if os.name=='nt' else Key.end
+
+win_name_filter = 'NTSC | Limiter: Normal | GSdx OGL HW | 640x224' if os.name=='nt' else 'Makai Kingdom - Chronicles of the Sacred Tome'
 
 def get_inputs(chars_to_summon, heal_characters, heal_vehicles, attack_castle=True, has_desynced=False):
     inputs = [] # Starts inside the level
@@ -53,7 +61,7 @@ def summon_char(char_slot, participating=True, is_vehicle=False, invite_selected
     return inputs
 
 def finish_level(time_to_finish_level): # time_to_finish_level = 1.3 if entering castle
-    return ['w', 's', (Key.f4, 0.05, time_to_finish_level), 's', ('s', 0.5), (Key.f4, 0.05, 0.8)]
+    return ['w', 's', (frame_limit_key, 0.05, time_to_finish_level), 's', ('s', 0.5), (frame_limit_key, 0.05, 0.8)]
 
 def heal(heal_characters, heal_vehicles, has_desynced):
     if heal_characters and heal_vehicles:
@@ -75,8 +83,6 @@ def start_level(stage, level):
 
 enter_castle = ['s', 's', (Key.right, 0.52), (Key.down, 0.1), 's', Key.down, ('s', 1.2)]
 def reselect_tome(char_name):
-    # if char_name=='Marcel':
-    #     return [(Key.left, 0.3)] + [(Key.enter, 0.1)]*6
     return [(Key.left, 0.3), (Key.enter, 0.1)]
 
 #===========================================================================================
@@ -107,25 +113,47 @@ def on_press(key):
     if key == Key.f10:
         Execute_script = not Execute_script
 
-def take_screenshot(region):
-    window_title = [window for window in gw.getAllTitles() if 'NTSC | Limiter: Normal | GSdx OGL HW | 640x224' in window][0]
-    try:
-        window = gw.getWindowsWithTitle(window_title)[0]
-        region = window.left+20, window.top+50, window.width//2, window.height//2
-    except:
-        print(f'Could not fetch {window_title}')
+def get_window_geometry(window):
+    geom = window.get_geometry()
+    root = window.query_tree().root
+    coords = window.translate_coords(root, 0, 0)
+
+    geom_values = {
+        "x": -coords.x,
+        "y": -coords.y,
+        "width": geom.width,
+        "height": geom.height,
+    }
+    
+    return geom_values
+
+def take_screenshot(region=None):
+    window = [win for win in ewmh.getClientList() if win.get_wm_name() and win_name_filter in win.get_wm_name()]
+    if window:
+        window = window[0]
+    else:
+        print('No matching window found')
+        return None, None
+
+    geom = get_window_geometry(window)
+    region = (geom['x'] + 20, geom['y'] + 50, geom['width'] // 2, geom['height'] // 2)
+
     screenshot = pyautogui.screenshot(region=region).convert('RGB')
     return screenshot, region
 
-def images_match(img1, img2, threshold=1000):
+def images_match(screenshot, ref_img, threshold=1000):
+    width, height = ref_image.size
+    screenshot = screenshot.resize((width, height), Image.Resampling.LANCZOS)
+
     total_diff = 0
-    x_range, y_range = img1.size
-    for x in range(x_range):
-        for y in range(y_range):
-            rgb_val1 = img1.getpixel((x,y))
-            rgb_val2 = img2.getpixel((x,y))
+    for x in range(width):
+        for y in range(height):
+            rgb_val1 = screenshot.getpixel((x, y))
+            rgb_val2 = ref_img.getpixel((x, y))
             for colour in range(3):
                 total_diff += abs(rgb_val1[colour] - rgb_val2[colour])
+
+    print(f'{total_diff:,}')
     return total_diff < threshold
 
 def anti_desync(count, screen_region):
@@ -185,14 +213,15 @@ chars_to_summon = [
     # {'char_slot': 0, 'char_name': 'Lorna'},
     # {'char_slot': 3, 'char_name': 'Huw'},
     # {'char_slot': 1, 'char_name': 'Marcel'},
-    # {'char_slot': 0, 'char_na2e': 'RX-66 Helldam', 'is_vehicle': True},
+    # {'char_slot': 0, 'char_name': 'RX-66 Helldam', 'is_vehicle': True},
 ]
-speed_up_time = 1.2
+speed_up_time = 1.5
 character_healing_frequency = 1
 vehicle_healing_frequency = 0
 attack_castle = True
 
-ref_image = Image.open('Reference images/Makai Kingdom.png').convert('RGB')
+
+ref_image = Image.open('Makai Kingdom/Reference images/BabylonsMessenger_linux.png').convert('RGB')
 listener = Listener(on_press=on_press)
 listener.start()
 Execute_script, count, screen_region, has_desynced = False, 0, None, False
