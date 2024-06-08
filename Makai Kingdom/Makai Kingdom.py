@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from pynput.keyboard import Key
 from PIL import Image, ImageEnhance, ImageFilter
 import pytesseract
@@ -25,7 +26,42 @@ attack_castle = True
 
 def main():
     makai_kingdom = Makai_Kingdom(chars_to_summon)
-    makai_kingdom.run_script()
+    # makai_kingdom.run_script()
+
+    save_path = Path('Makai Kingdom/Reference images')
+    
+    # get_screen_region = lambda geom: (geom[0] + 20, geom[1] + 90, geom[2] // 3 - 30, geom[3] // 2 - 10)
+    # screenshot = makai_kingdom.take_screenshot(get_screen_region)
+    # screenshot.save(save_path / 'test.png')
+    
+    screenshot = Image.open(save_path / 'test.png').convert('RGB')
+
+    # screenshot = screenshot.convert('L')
+    # enhancer = ImageEnhance.Contrast(screenshot)
+    # screenshot = enhancer.enhance(2)
+    # screenshot = screenshot.filter(ImageFilter.MedianFilter())
+    # screenshot = screenshot.point(lambda p: p > 128 and 255)
+    # screenshot.save(save_path / "intermediate_output.png")
+
+    data = screenshot.load()
+    for x in range(screenshot.width):
+        for y in range(screenshot.height):
+            r, g, b = data[x, y]
+            dist_from_white = ((255-r)**2+(255-g)**2+(255-b)**2)**0.5
+            if  dist_from_white > 250:
+                data[x, y] = (0, 0, 0)
+
+    # screenshot.save(save_path / "output.png")
+    # screenshot = Image.open(save_path / 'output.png').convert('RGB')
+
+    box_height = 30
+    for n in range(8):
+        box = (35, 30+box_height*n, 180, 60+box_height*n)
+        cropped_screenshot = screenshot.crop(box)
+        cropped_screenshot.save(save_path / f"cropped_output_{n}.png")
+    
+        text = pytesseract.image_to_string(cropped_screenshot, config='--psm 6', lang='eng')
+        print(text)
 
 class Makai_Kingdom(game_automation):
     def __init__(self, chars_to_summon):
