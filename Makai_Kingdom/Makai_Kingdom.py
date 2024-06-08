@@ -1,3 +1,4 @@
+import time
 import os
 from pathlib import Path
 from pynput.keyboard import Key
@@ -38,6 +39,7 @@ class Makai_Kingdom(game_automation):
         super(Makai_Kingdom, self).__init__()
         self.chars_to_summon = chars_to_summon
         self.win_name_filter = win_name_filter
+        self.total_item_count = 433 # Items with ID above this I want to keep!
 
         self.enter_castle = ['s', 's', (Key.right, 0.52), (Key.down, 0.1), 's', Key.down, ('s', 1.2)]
         self.reselect_tome = [(Key.left, 0.3), (Key.enter, 0.1)]
@@ -45,14 +47,45 @@ class Makai_Kingdom(game_automation):
 
     def main(self):
         if self.execute_script:
-            get_screen_region = lambda geom: (geom[0] + 20, geom[1] + 90, geom[2] // 3 - 30, geom[3] // 2 - 10)
-            screenshot = self.take_screenshot(get_screen_region)
+            inputs = [(Key.f3, 0.1, 1), ('s', 1.3), ('s', 0.3), Key.down, Key.down, ('s', 0.1), Key.up]
+            self.execute_inputs(inputs)
+            
+            total_items_kept, offset, total_items_sold, sell_from_bottom_up = [], 0, 0, True
+            while total_items_sold < 1000 - self.total_item_count:
+                print(total_items_sold)
 
-            items_to_sell = find_items_to_sell(screenshot)
-            for item in items_to_sell:
-                print(item)
-            print()
+                # Define region to screenshot and take screenshot
+                get_screen_region = lambda geom: (geom[0] + 20, geom[1] + 90, geom[2] // 3 - 30, geom[3] // 2 - 10)
+                screenshot = self.take_screenshot(get_screen_region)
+
+                # Use OCR image to text processing to determines which items are kept, and where their indices are
+                items_kept, items_kept_indices = find_items_to_sell(screenshot, offset, sell_from_bottom_up)
+                total_items_kept += items_kept
+
+                # Get inputs from items to keep scraped from images
+                inputs = self.get_inputs_from_items_to_keep(offset, sell_from_bottom_up, total_items_kept, items_kept, items_kept_indices)
+                self.execute_inputs(inputs)
+                time.sleep(0.2)
+
+                # Update variables used to determine inputs from the items to keep
+                if len(total_items_kept) % 8 == 0:
+                    sell_from_bottom_up = False
+                total_items_sold += 8 - offset - len(items_kept)
+                offset = len(total_items_kept) if sell_from_bottom_up else 0
+
             self.execute_script = False
+
+    def get_inputs_from_items_to_keep(self, offset, sell_from_bottom_up, total_items_kept, items_kept, items_kept_indices):
+        inputs = [] 
+        skip_key = Key.up if sell_from_bottom_up else Key.down
+        for n in range(8 - offset):
+            inputs += [skip_key] if n in items_kept_indices else ['s']
+        if not sell_from_bottom_up:
+            inputs += [Key.up] * len(items_kept) + ['q']
+        if len(total_items_kept) % 8 == 0 and sell_from_bottom_up:
+            inputs.pop()
+            inputs += ['q']
+        return inputs
 
     def alt_main(self):
         if self.execute_script:
