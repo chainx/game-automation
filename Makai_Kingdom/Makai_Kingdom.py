@@ -7,12 +7,15 @@ import pytesseract
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from game_automation import game_automation
+from image_to_text import find_items_to_sell
+
+save_path = Path('Makai_Kingdom/Reference images')
 
 # I use different key bindings on Windows and Linux due to conflicts with my key binds on Linux
 linux_or_windows = 'windows' if os.name=='nt' else 'linux'
 frame_limit_key = Key.f4 if linux_or_windows=='windows' else Key.end
 win_name_filter = 'NTSC | Limiter: Normal | GSdx OGL HW | 640x224' if linux_or_windows=='windows' else 'Makai Kingdom - Chronicles of the Sacred Tome'
-ref_image = Image.open(f'Makai Kingdom/Reference images/BabylonsMessenger_{linux_or_windows}.png').convert('RGB')
+ref_image = Image.open(save_path / f'BabylonsMessenger_{linux_or_windows}.png').convert('RGB')
 
 chars_to_summon = [
     {'char_slot': 1, 'char_name': 'First Sacrifice'},
@@ -26,42 +29,9 @@ attack_castle = True
 
 def main():
     makai_kingdom = Makai_Kingdom(chars_to_summon)
-    # makai_kingdom.run_script()
-
-    save_path = Path('Makai Kingdom/Reference images')
+    makai_kingdom.run_script()
     
-    # get_screen_region = lambda geom: (geom[0] + 20, geom[1] + 90, geom[2] // 3 - 30, geom[3] // 2 - 10)
-    # screenshot = makai_kingdom.take_screenshot(get_screen_region)
-    # screenshot.save(save_path / 'test.png')
-    
-    screenshot = Image.open(save_path / 'test.png').convert('RGB')
-
-    # screenshot = screenshot.convert('L')
-    # enhancer = ImageEnhance.Contrast(screenshot)
-    # screenshot = enhancer.enhance(2)
-    # screenshot = screenshot.filter(ImageFilter.MedianFilter())
-    # screenshot = screenshot.point(lambda p: p > 128 and 255)
-    # screenshot.save(save_path / "intermediate_output.png")
-
-    data = screenshot.load()
-    for x in range(screenshot.width):
-        for y in range(screenshot.height):
-            r, g, b = data[x, y]
-            dist_from_white = ((255-r)**2+(255-g)**2+(255-b)**2)**0.5
-            if  dist_from_white > 250:
-                data[x, y] = (0, 0, 0)
-
-    # screenshot.save(save_path / "output.png")
-    # screenshot = Image.open(save_path / 'output.png').convert('RGB')
-
-    box_height = 30
-    for n in range(8):
-        box = (35, 30+box_height*n, 180, 60+box_height*n)
-        cropped_screenshot = screenshot.crop(box)
-        cropped_screenshot.save(save_path / f"cropped_output_{n}.png")
-    
-        text = pytesseract.image_to_string(cropped_screenshot, config='--psm 6', lang='eng')
-        print(text)
+    # screenshot = Image.open(save_path / 'test.png').convert('RGB')
 
 class Makai_Kingdom(game_automation):
     def __init__(self, chars_to_summon):
@@ -74,6 +44,17 @@ class Makai_Kingdom(game_automation):
         self.finish_level = ['w', 's', (frame_limit_key, 0.05, time_to_finish_level), 's', ('s', 0.5), (frame_limit_key, 0.05, 0.8)]
 
     def main(self):
+        if self.execute_script:
+            get_screen_region = lambda geom: (geom[0] + 20, geom[1] + 90, geom[2] // 3 - 30, geom[3] // 2 - 10)
+            screenshot = self.take_screenshot(get_screen_region)
+
+            items_to_sell = find_items_to_sell(screenshot)
+            for item in items_to_sell:
+                print(item)
+            print()
+            self.execute_script = False
+
+    def alt_main(self):
         if self.execute_script:
             heal_characters = self.count % character_healing_frequency == 0 if character_healing_frequency > 0 else False
             heal_vehicles = self.count % vehicle_healing_frequency == 0 if vehicle_healing_frequency > 0 else False
