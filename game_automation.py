@@ -24,6 +24,10 @@ class game_automation:
         listener = Listener(on_press=self.on_press)
         listener.start()
         while True:
+            if self.has_desynced:
+                print('Desync detected!')
+                self.has_desynced = True
+                self.key_press(Key.f3, wait=1.5)
             self.main()
 
     # ================      ==================
@@ -88,16 +92,3 @@ class game_automation:
                     total_diff += abs(rgb_val1[colour] - rgb_val2[colour])
 
         return total_diff < threshold
-
-    def anti_desync(self, ref_image, get_screen_region):
-        has_desynced = False
-        screenshot = self.take_screenshot(get_screen_region)
-        if self.images_match(ref_image, screenshot):
-            self.key_press('s', wait=2.5)
-            self.key_press(Key.f1, wait=1)
-            self.count+=1
-            print(f'Number of cycles: {self.count}')
-        else:
-            print('Desync detected!')
-            self.has_desynced = True
-            self.key_press(Key.f3, wait=1.5)
