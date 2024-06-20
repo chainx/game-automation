@@ -16,6 +16,9 @@ class game_automation:
     def main(self): 
         pass # Overwritten by parent class
 
+    def print_state_variables(self):
+        pass # Overwritten by parent class
+
     def on_press(self, key):
         if key == Key.f10:
             self.execute_script = not self.execute_script
@@ -24,13 +27,21 @@ class game_automation:
         listener = Listener(on_press=self.on_press)
         listener.start()
         while True:
-            if self.has_desynced:
-                print('Desync detected!')
-                self.has_desynced = True
-                self.key_press(Key.f3, wait=1.5)
-            self.main()
+            if self.execute_script:
+                self.main()
+                if self.has_desynced:
+                    print('Desync detected!')
+                    self.has_desynced = True
+                    self.key_press(Key.f3, wait=1.5)
+                else:
+                    self.count += 1
+                    if self.count%5 == 0:
+                        print(f'Number of cycles: {self.count}')
+            elif self.count>0:
+                self.print_state_variables()
+                self.count = 0
 
-    # ================      ==================
+    # ================   AUTOMATION OF INPUTS   ==================
 
     def key_press(self, key, hold=0.05, wait=0.08):
         keyboard.press(key)
@@ -47,15 +58,6 @@ class game_automation:
                 self.key_press(*input)
             else:
                 self.key_press(input)
-
-    # ================   GENERIC INPUTS   ==================
-
-    def menu_select(self, N, select=True):
-        up_or_down = Key.up if N < 0 else Key.down
-        inputs = [up_or_down for n in range(abs(N))]
-        if select:
-            inputs += ['s']
-        return inputs
     
     # ================   ANTI-DESYNC FUNCTIONALITY   ==================
 
