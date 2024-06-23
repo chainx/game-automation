@@ -9,7 +9,7 @@ import pytesseract
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from game_automation import game_automation
-from image_to_text import find_items_to_sell, clean_image, is_not_black_image, extract_count, partition_screenshot
+from image_to_text import find_items_to_sell, clean_image, partition_screenshot
 
 save_path = Path('Makai_Kingdom/Reference images')
 
@@ -20,37 +20,44 @@ win_name_filter = 'NTSC | Limiter: Normal | GSdx OGL HW | 640x224' if linux_or_w
 ref_image = Image.open(save_path / f'BabylonsMessenger_{linux_or_windows}.png').convert('RGB')
 
 # On Linux run:
-#    wmctrl -r "Makai Kingdom - Chronicles of the Sacred Tome" -e 0,0,0,640,480
+#    wmctrl -r "Makai Kingdom - Chronicles of the Sacred Tome" -e 0,1400,250,640,480
 # To ensure the window is the correct size for screenshots to match reference images
 
 chars_to_summon = [
-    # {'char_slot': 5, 'char_name': 'Marcel'},
+    # {'char_slot': 0, 'char_name': 'Yoshitsuna', 'is_vehicle': True}
     # {'char_slot': -1, 'char_name': 'Slash'},
     {'char_slot': 1, 'char_name': 'First Sacrifice'},
     {'char_slot': 1, 'char_name': 'Second Sacrifice'},
-    {'char_slot': 0, 'char_name': 'Executioner'},
+    {'char_slot': 0, 'char_name': 'MikeOCD'},
+    # {'char_slot': 0, 'char_name': 'Executioner'},
 ]
-time_to_finish_level = 0.7
+time_to_finish_level = 1 # 0.7
 character_healing_frequency = 1
-selling_frequency = 50
-initial_item_count = 308
-first_food_item_index = 163
-first_star_item_index = 163
-star_bonus = 419
+selling_frequency = 100
+
+initial_item_count = 165
+first_food_item_index = 108
+first_star_item_index = 90
+
+star_bonus = 306
+
+char_type = 'tec' # (atk, tec, int, yosh)
+create_food_dungeon = False
+food_dungeons_total = 1
+
 vehicle_healing_frequency = 0
-create_dungeon=False
 attack_castle = True
+
+import warnings # Yes my GPU sucks, but I don't need to be constantly reminded!
+warnings.filterwarnings("ignore", category=UserWarning, message="CUDA initialization.*")
+import easyocr
+reader = easyocr.Reader(['en'])
+import numpy as np    
 
 def main():
     print(datetime.datetime.now())
     makai_kingdom = Makai_Kingdom()
     makai_kingdom.run_script()
-
-    # makai_kingdom.count_mana()
-    # count = makai_kingdom.count_total_items()
-    # screenshot = Image.open(save_path/'debug_reincarnation.png')
-    # count = extract_count(screenshot, debug=True)
-    # print(count)
 
 class Makai_Kingdom(game_automation):
     def __init__(self):
@@ -71,23 +78,35 @@ class Makai_Kingdom(game_automation):
         self.BabylonsMessenger_main()
         # self.FoodDungeon_main()
         # self.reincarnate()
+        # self.sell_items(total_item_count=1200)
         # self.organise_inventory()
+        # self.execute_script = False
 
     def BabylonsMessenger_main(self):
         heal_characters = self.count % character_healing_frequency == 0 if character_healing_frequency > 0 else False
         heal_vehicles = self.count % vehicle_healing_frequency == 0 if vehicle_healing_frequency > 0 else False
         inputs = self.get_BabylonsMessenger_inputs(heal_characters, heal_vehicles)
         self.execute_inputs(inputs)
-
-        if self.count % selling_frequency == 0 and self.execute_script:
+        
+        if not self.execute_script:
+            return
+        if selling_frequency == 0:
+            pass
+        elif self.count % selling_frequency == 0 and self.execute_script:
             total_item_count = self.count_total_items(debug_label='initial_item_count')
             print(f'Total item count: {total_item_count}, previous item count: {self.initial_item_count}')
-            if not total_item_count or total_item_count < self.initial_item_count: # This will only happen if there's an OCR error
+            if total_item_count < self.initial_item_count: # This will only happen if there's an OCR error
                 self.has_desynced = True
                 return
             self.sell_items(total_item_count)
+            prev_initial_item_count = self.initial_item_count
             self.initial_item_count = self.count_total_items(exit_menu=False, debug_label='final_item_count')
             print(f'Total items after sales: {self.initial_item_count}')
+            if self.initial_item_count < self.first_food_item_index: # This will only happen if there's an OCR error
+                self.count += 1 # Collect more items before trying again
+                self.initial_item_count = prev_initial_item_count
+                self.has_desynced = True
+                return
             mana_count = self.count_mana()
             if mana_count == 9999999:
                 self.execute_inputs([(Key.f1, 0.5), Key.f2, 'w', 's', (Key.right, 0.2), 's', Key.up])
@@ -113,60 +132,83 @@ class Makai_Kingdom(game_automation):
 
     def FoodDungeon_main(self):
         self.beat_food_dungeon()
-        self.prep_for_next_food_dungeon(create_dungeon)
+        if not self.execute_script:
+            return
+        self.prep_for_next_food_dungeon(create_food_dungeon)
         inputs = self.heal(heal_characters=True, heal_vehicles=False)
-        inputs += [('s', 0.05, 1), ('s', 0.05, 1), Key.down, 's', ('s', 4)]
-        self.execute_inputs(inputs)
+        if self.count < food_dungeons_total - 1 or create_food_dungeon:
+            inputs += [('s', 0.05, 1), ('s', 0.05, 1), Key.down, 's', ('s', 4)]
+            self.execute_inputs(inputs)
+        else:
+            self.execute_inputs(inputs)
+            self.execute_script = False
+
     
     def beat_food_dungeon(self):
         inputs = [
-            'r', 's', 's', Key.left, 's', (Key.left, 0.25), ('s', 2.6), # Summon academy
-            's', 's', Key.left, 's', (Key.right, 0.4), ('s', 2.6), # Summon food stall
-            (Key.left, 0.25), 's', 's', (Key.right, 0.3), (Key.up, 0.1), ('s', 1), # Exit academy
-            (Key.right, 0.4), 's', 's', (Key.left, 0.35), 's', (Key.home, 1.7, .1), Key.enter, # Feed from food stall
-            's', 's', Key.up, 's', (Key.down, 0.15), ('s', 2.6), (Key.down, 0.15), # Summon first chef
+            'e', 's', 's', Key.left, 's', (Key.left, 0.35), ('s', 2.6), # Summon Academy
+            's', 's', Key.left, 's', (Key.right, 0.4), ('s', 2.6), # Summon Warehouse
+            (Key.left, 0.25), 's', 's', (Key.right, 0.25), (Key.up, 0.2), ('s', 1), # Exit Academy
+            (Key.down, 0.2), 's', # Select Tome
         ]
-        for n in range(5): # Feed main char
-            inputs += ['s', Key.down, Key.down, 's'] + [Key.down]*n + ['s', 's', (Key.up, 0.27), 's', (Key.home, 1.7, .1)]
-        inputs += ['s', 's', (Key.up, 0.5), 's', (Key.down, 0.35), 's', 's', Key.up, 's', (Key.down, 0.15), ('s', 2.6), (Key.down, 0.15)]
-        for n in range(3): # Feed main char
-            inputs += ['s', Key.down, Key.down, 's'] + [Key.down]*n + ['s', 's', (Key.up, 0.27), 's', (Key.home, 1.7, .1)]
-        inputs += [(Key.up, 0.25), 's', 's', (Key.down, 0.15), 'w', 's', (Key.up, 0.1), 's']
+        feed_directions = [[(Key.down, 0.2)]] * 2 # To feed main char
+        for x_direction in [(Key.left, 0.15), (Key.right, 0.05), (Key.right, 0.2)]:
+            for y_direction in [(Key.up, 0.22), (Key.up, 0.4), (Key.up, 0.5)]:
+                feed_directions.append([x_direction, y_direction])
+        for direction in feed_directions:
+            inputs += ['s', Key.up, 's', (Key.up, 0.4), ('s', 2.6), (Key.up, 0.4)]
+            for n in range(5): # Feeding
+                inputs += ['s', Key.down, Key.down, 's'] + [Key.down]*n + ['s', 's'] + direction + ['s', (Key.home, 1.7, .1)]
+            inputs += ['s', 's', (Key.right, 0.4), (Key.down, 0.2), 's', Key.down, ('s', 1.2), (Key.enter, 0.2), 's', Key.up]
+
+        inputs += ['d', (Key.up, 0.15), 's'] # Select main char 
+        inputs += self.attack_food_dungeon_inputs()
         inputs += self.finish_level
         self.execute_inputs(inputs)
 
-        self.total_item_count -= 8
+        if self.execute_script:
+            self.total_item_count -= 11*5 # 11 Chefs each using 5 food items
 
-    def prep_for_next_food_dungeon(self, create_dungeon):
+    def prep_for_next_food_dungeon(self, create_food_dungeon):
         total_item_count = self.count_total_items(position_in_menu=0, keep_arranging=True, debug_label='item_count')
         if total_item_count == self.total_item_count + 1:
             print('Item acquired in food dungeon')
-            self.move_item_above_food_and_stars(total_item_count, keep_arranging=True)
+            self.move_item_above_food_and_stars(total_item_count)
             self.total_item_count += 1
             self.first_food_item_index += 1
             self.first_star_item_index += 1
+
         inputs = [
-            Key.up, Key.up, ('s', 0.5), 's', ('s', 0.2), 'w', ('d', 0.2), ('d', 0.2), Key.up, 's', # Leave academy and navigate to char equip
+            'd', Key.up, Key.up, ('s', 0.5), 's', ('s', 0.2), 'w', ('d', 0.2), ('d', 0.2), Key.up, 's', # Leave academy and navigate to char equip
             Key.up, 's', 'w', 's', Key.up, Key.up, 's', ('d', 0.2), ('d', 0.2), ('d', 0.5), 'd', (Key.up, 0.45), # Equip food and move to Zetta
             ('s', 0.8), Key.up, Key.up, Key.up, ('s', 0.3), ('s', 0.5), 's', ('s', 2.7), (Key.down, 0.45), # Wish for dungeon
         ]
-        if create_dungeon:
+        if create_food_dungeon:
             self.execute_inputs(inputs)
             inputs = ['w', ('s', 0.5), 's'] # Navigate to char equip
         else:
             inputs = ['d', Key.up, Key.up, ('s', 0.5), 's'] # Navigate to char equip
 
-        inputs += ['s', 's', 's', 'd'] if create_dungeon else [] # Re-equip weapon if food dungeon created
-        down_presses = 2 if create_dungeon else 1 # Requires academy almost full / full
-        inputs += [Key.up, 'q'] + [Key.down]*down_presses + ['s', 's', Key.up, 's'] # Navigate to chef equipment
-        inputs += [Key.down, 's', 's'] * 4 + ['d', Key.up, 's'] + ['s', 's', Key.down] * 3 # Equip food to chefs
-        if create_dungeon: # Re-enter academy
-            inputs += ['d', 'd', Key.down, 's', ('s', 0.2), 's', 's', ('d', 0.2), ('d', 0.2), ('d', 0.5), 'd']
+        inputs += ['s', 's', 's', 'd'] if create_food_dungeon else [] # Re-equip weapon if food dungeon created
+        down_presses = 2 if create_food_dungeon else 1 # Requires academy almost full / full
+        inputs += [Key.up, 'q'] + [Key.down]*down_presses # Navigate to first chef
+
+        for chef in range(11):
+            inputs += ['s']
+            for food_item in range(5):
+                if chef == 0 and food_item == 0:
+                    inputs += ['s', Key.up, 's', Key.down]
+                else:
+                    inputs += ['s', 's', Key.down]
+            inputs += ['d', Key.up] 
+
+        if create_food_dungeon: # Re-enter academy
+            inputs += ['d', Key.down, 's', ('s', 0.2), 's', 's', ('d', 0.2), ('d', 0.2), ('d', 0.5), 'd']
         else:
-            inputs += ['d', 'd', ('d', 0.5), 'd']
+            inputs += ['d', ('d', 0.5), 'd']
         self.execute_inputs(inputs)
 
-    def move_item_above_food_and_stars(self, total_item_count, keep_arranging=False):
+    def move_item_above_food_and_stars(self, total_item_count):
         inputs = ['s', Key.up, 's']
         for N in range(2):
             for n in range((total_item_count-self.first_food_item_index)//8):
@@ -178,7 +220,7 @@ class Makai_Kingdom(game_automation):
             inputs += [('q', 0.02, 0.02)]
         for n in range((self.first_food_item_index-self.first_star_item_index)%8):
             inputs += [(Key.up, 0.02, 0.02)]
-        inputs += ['s', 'd', 'd', 'd'] if not keep_arranging else ['s', 'd']
+        inputs += ['s', 'd']
         self.execute_inputs(inputs)
 
     def sell_items(self, total_item_count):
@@ -256,23 +298,24 @@ class Makai_Kingdom(game_automation):
         if not self.has_desynced:
             inputs = [('s', 0.8), ('s', 0.3), Key.right]
             for n in range(self.first_star_item_index//7):
-                inputs += [('r', 0.02, 0.02)]
+                inputs += [('e', 0.02, 0.02)]
             for n in range(self.first_star_item_index%7-1):
                 inputs += [(Key.down, 0.02, 0.02)]
-            inputs += ['s', (Key.right, 0.11), (Key.down, 0.48), ('s', 1.9), (Key.down, 1.1), ('s', 0.8), ('s', 0.3)]
+            inputs += ['s', (Key.right, 0.1), (Key.down, 0.45), ('s', 1.9), (Key.down, 1.1), ('s', 0.8), ('s', 0.3)]
             self.execute_inputs(inputs)
 
         # Check star bonus
-        get_screen_region = lambda geom: (geom[0]+geom[1]//2-5, geom[1]+geom[3]//3+35, geom[2]//10 - 30, geom[3]//12-10)
+        get_screen_region = lambda geom: (geom[0]+geom[1]//3+5, geom[1]+geom[3]//3+35, geom[2]//10 - 30, geom[3]//12-10)
         star_bonus = self.extract_count(get_screen_region, debug_label='reincarnation')
         if star_bonus < self.star_bonus or star_bonus > self.star_bonus + 4:
+            self.first_food_item_index += 1
             self.has_desynced = True
             return
         else:
             self.first_food_item_index -= 1
             print(f'Current star bonus is: {star_bonus}, first food item is at index: {self.first_food_item_index}')
             self.star_bonus = star_bonus
-            # self.key_press(Key.f1, 0.01, 0.2)
+            self.key_press(Key.f1)
         if star_bonus >= 500:
             self.key_press(Key.f1)
             self.execute_script = False
@@ -281,9 +324,10 @@ class Makai_Kingdom(game_automation):
 
         # Create and sacrifice character
         inputs = [
-            ('s', 0.5), 's', Key.up, 's', Key.up, 's', ('s', 4.8), # Create now character
-            (Key.left, 0.17), (Key.up, 0.77), ('s', 0.8), Key.up, Key.up, Key.up, ('s', 0.3), # Move back to Zetta and make a wish
-            (Key.right, 0.1), (Key.down, 0.5), ('s', 0.5), 's', ('s', 0.9), # Navigate to sacrifice choice
+            ('s', 0.5), 's', Key.up, 's', Key.up, 's', ('s', 4.8), # Create new character
+            (Key.left, 0.17), (Key.up, 0.77), (Key.right, 0.05), # Move back to Zetta 
+            ('s', 0.8), Key.up, Key.up, Key.up, ('s', 0.3), # Make a wish
+            (Key.right, 0.09), (Key.down, 0.5), ('s', 0.5), 's', ('s', 0.9), # Navigate to sacrifice choice
             's', (frame_limit_key, 0.1, 1), (frame_limit_key, 0.1, 0.7), # Sacrifice character
             ('s', 0.8), Key.down, Key.down, Key.down, ('s', 0.3), Key.left, Key.up, 's', Key.down, ('s', 2), ('d', 0.3) # Delete new building
         ]
@@ -294,15 +338,11 @@ class Makai_Kingdom(game_automation):
         screenshot = self.take_screenshot(get_screen_region)
         screenshot, _ = clean_image(screenshot)
         screenshot.save(save_path/f'debug_{debug_label}.png')
-        try:
-            count = extract_count(screenshot, char_width, debug)
-            return count
-        except:
-            self.has_desynced = True
-            return None
+        result = reader.readtext(np.array(screenshot), detail=0, allowlist='0123456789')
+        return int(result[0])
 
-    def count_mana(self):
-        self.execute_inputs([Key.up, 's', ('s', 0.2)])
+    def count_mana(self, char_slot=0):
+        self.execute_inputs([Key.up, 's'] + [Key.down]*char_slot + [('s', 0.2)])
         get_screen_region = lambda geom: (geom[0]+300, geom[1]+geom[3]//8 + 10, geom[2]//8 - 10, geom[3]//20 - 7)
         mana_count = self.extract_count(get_screen_region, debug_label='mana')
         self.execute_inputs([('d', 0.1), 'd', Key.down, 'd'])
@@ -385,8 +425,21 @@ class Makai_Kingdom(game_automation):
         if select:
             inputs += ['s']
         return inputs
+    
+    def attack_food_dungeon_inputs(self):
+        if char_type=='atk':
+            inputs = ['s', (Key.down, 0.15), 'w', 's', (Key.up, 0.1), 's']
+        if char_type=='tec':
+            inputs = ['s', (Key.up, 0.2), 'w', 's', (Key.up, 0.1), 's']
+        if char_type=='int':
+            inputs = []
+        if char_type=='yosh':
+            inputs = []
+        return inputs
 
     def attack_castle_inputs(self, char_name):
+        if char_name=='Yoshitsuna':
+            inputs = ['s', 's', (Key.right, 0.5), 'w', 's', 's']
         if char_name=='First Sacrifice':
             inputs = ['s', 's', (Key.right, 0.5), 's']
         if char_name=='Second Sacrifice':
@@ -406,7 +459,7 @@ class Makai_Kingdom(game_automation):
         if char_name=='Huw':
             inputs = ['s', 's', (Key.down, 0.25), (Key.right, 0.2), 'w', 's', 's']
         if char_name=='MikeOCD':
-            inputs = ['s', 's', (Key.down, 0.35), 'w', 's', (Key.right, 0.6), 's']
+            inputs = ['s', 's', (Key.down, 0.1), (Key.right, 0.1), 'w', 's', (Key.right, 0.2), 's']
         if char_name=='Marcel':
             inputs = ['s', 's', (Key.right, 0.12), 'w', 's', (Key.down, 0.25), (Key.right, 0.5), ('s', 0.1)]
         if char_name=='RX-66 Helldam':
