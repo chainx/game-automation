@@ -1,10 +1,15 @@
 import time
+import sys
 from pynput.keyboard import Key, Controller, Listener
 from ewmh import EWMH
 import pyautogui
 from PIL import Image
 
-ewmh = EWMH()
+if sys.platform.startswith("linux"):
+    from ewmh import EWMH
+    ewmh = EWMH()
+else:
+    ewmh = None
 keyboard = Controller()
 
 class game_automation:
@@ -23,11 +28,13 @@ class game_automation:
         if key == Key.f10:
             self.execute_script = not self.execute_script
 
-    def run_script(self):
+    def run_script(self, keys_to_hold=None):
         listener = Listener(on_press=self.on_press)
         listener.start()
         while True:
             if self.execute_script:
+                for key in keys_to_hold:
+                    keyboard.press(key)
                 self.main()
                 if self.has_desynced:
                     print('Desync detected!')
@@ -38,6 +45,8 @@ class game_automation:
                     if self.count%5 == 0:
                         print(f'Number of cycles: {self.count}')
             elif self.count>0:
+                for key in keys_to_hold:
+                    keyboard.release(key)
                 self.print_state_variables()
                 self.count = 0
 
