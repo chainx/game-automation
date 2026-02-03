@@ -1,12 +1,11 @@
 import psutil, ctypes as ct, time
+from dw1_addresses import ADDRESSES
 
 def main():
-    try:
-        address_value = get_address_values(0x90800, 0x1384A8, verbose=False)
-    except Exception as exc:
-        print(f"Failed to read address value: {exc}")
-        return
-    print(address_value)
+    lifetime_key = find_address_key(["lifespan", "remaining lifetime (hours)", "remaining lifetime"])
+    lifetime_off = psx_offset(ADDRESSES[lifetime_key]["address"])
+    address_value = get_address_values(0x90800, lifetime_off, verbose=False)
+    print(f"{lifetime_key} -> {address_value}")
 
 # =========================================================
 
@@ -33,6 +32,111 @@ def get_address_values(DELTA, OFF, TARGET="psxfin.exe", verbose=False):
         K.CloseHandle(process)
 
 # =========================================================
+
+def find_address_key(keywords):
+    for keyword in keywords:
+        keyword_lower = keyword.lower()
+        for key in ADDRESSES:
+            if keyword_lower in key.lower():
+                return key
+    raise KeyError(f"No address key found for keywords: {keywords}")
+
+def psx_offset(address_str):
+    prefix = "PSXBaseAddress+"
+    if not address_str.startswith(prefix):
+        raise ValueError(f"Unsupported address format: {address_str}")
+    return int(address_str[len(prefix):], 16)
+
+# =========================================================
+
+def get_psx_base(process, delta=0x90800, verbose=False):
+    pat = bytes.fromhex(
+        "a0 00 0a 24 08 00 40 01 44 00 09 24 00 00 00 00 "
+        "a0 00 0a 24 08 00 40 01 49 00 09 24 00 00 00 00 "
+        "a0 00 0a 24 08 00 40 01 70 00 09 24 00 00 00 00 "
+        "a0 00 0a 24 08 00 40 01 72 00 09 24 00 00 00 00"
+    )
+    code_start = aob_scan_first(process, pat, max_scan_seconds=15, verbose=verbose)
+    return code_start - delta
+
+def read_mem(h, addr, size):
+    buf, rd = (ct.c_ubyte * size)(), ct.c_size_t()
+    if not (K.ReadProcessMemory(h, ct.c_void_p(addr), ct.byref(buf), size, ct.byref(rd)) and rd.value == size):
+        raise ct.WinError(ct.get_last_error())
+    return int.from_bytes(bytes(buf), byteorder="little", signed=False)
+
+def read_value_by_type(h, addr, value_type):
+    vt = (value_type or "").lower()
+    if "4 bytes" in vt:
+        return read_mem(h, addr, 4)
+    if "2 bytes" in vt:
+        return read_mem(h, addr, 2)
+    # Byte and Binary default to 1 byte
+    return read_mem(h, addr, 1)
+
+def print_watch_values(target="psxfin.exe", verbose=False):
+    pid = pid_by_name(target)
+    if pid is None:
+        raise RuntimeError(f"Process not found: {target}")
+    if verbose:
+        print(f"Found {target} with PID {pid}")
+    process = open_process(pid)
+    try:
+        psx_base = get_psx_base(process, verbose=verbose)
+        if verbose:
+            print(f"PSX base: 0x{psx_base:08X}")
+        for label, key in WATCH_KEYS.items():
+            entry = ADDRESSES.get(key)
+            if not entry:
+                print(f"{label}: missing key {key}")
+                continue
+            addr = psx_base + psx_offset(entry["address"])
+            value = read_value_by_type(process, addr, entry.get("type"))
+            print(f"{label}: {value}")
+    finally:
+        K.CloseHandle(process)
+
+WATCH_KEYS = {
+    "Care Mistakes": '"Condition"/"Care Mistakes"',
+    "IsHungry": '"Condition Flag"/"Hungry"',
+    "Tiredness": '"Condition"/"Tiredness (0-100)"',
+    "Happiness": '"Condition"/"Happiness"',
+    "Energy Level": '"Condition"/"Energy Level"',
+    "Weight": '"Condition"/"Weight"',
+    "Lifespan": '"Condition"/"Remaining Lifetime (Hours)"',
+    "Age since Digivolution": '"Condition"/"Age in hours (for evolve)"',
+    "Condition Flag": '"Condition Flag"',
+    "Timers/Back Dimension": '" 28 - Back Dimension Timer"',
+    "Timers/Drimogemon": '" 30 - Drimogemon/Treasure Hunt Timer"',
+    "Timers/Hungry": '"Condition"/"Hungry Timer"',
+    "Timers/Pooping": '"Condition"/"Pooping Timer"',
+    "Timers/Sickness": '"Condition"/"SicknessTimer"',
+    "Timers/Starvation": '"Condition"/"Starvation Timer"',
+    "Timers/Tiredness Hunger": '"Condition"/"Tiredness Hunger Timer"',
+    "Timers/Tiredness Sleep": '"Condition"/"Sleep"/"Tiredness Sleep Timer"',
+    "Timers/Training Boost": '"Condition"/"Training Boost"/"Training Boost Timer"',
+    "Off": '"Parameter"/"Off"',
+    "Def": '"Def"',
+    "Speed": '"Parameter"/"Speed"',
+    "Brains": '"Parameter"/"Brains"',
+    "HP": '"Parameter"/"HP"',
+    "MP": '"Parameter"/"MP"',
+    "Bits": '"Parameter"/"Bits"',
+    "Tournaments won": '"Tournaments won"',
+    "Time/Year": '"Time"/"Year"',
+    "Time/Day": '"Time"/"Day"',
+    "Time/Hour": '"Time"/"Hour"',
+    "Time/Minute": '"Time"/"Minute"',
+    "Took Meat": '"Took Meat"',
+    "Drimogemon Days passed": '"Drimogemon Days passed"',
+    "Inventory Pointer": '"Inventory Pointer"',
+    "Inventory Size": '"Inventory Size"',
+}
+
+WATCH_OFFSETS = {
+    label: psx_offset(ADDRESSES[key]["address"])
+    for label, key in WATCH_KEYS.items()
+}
 
 K = ct.windll.kernel32
 

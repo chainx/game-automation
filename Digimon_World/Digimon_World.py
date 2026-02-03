@@ -7,7 +7,7 @@ import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
-from memory_scan import get_address_values
+from memory_scan import get_address_values, print_watch_values
 from dw1_addresses import ADDRESSES
 
 DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
@@ -20,10 +20,7 @@ Map_setup              = pd.read_excel(DATA_FILENAME, sheet_name="Map Setup")
 Arena_rewards          = pd.read_excel(DATA_FILENAME, sheet_name="Arena Rewards") 
 
 def main():
-    print(ADDRESSES['" 16 - Back Dimension Location"'])
-    address_value = get_address_values(0x90800, 0x1384A8, verbose=False)
-    print(address_value)
-
+    print_watch_values()
     # digimon_world = Digimon_World()
     # digimon_world.run_script(keys_to_hold=[Key.down, Key.right])
 
