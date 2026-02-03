@@ -16,6 +16,7 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/Digimon_World/Digimon_World.py",
+      "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
