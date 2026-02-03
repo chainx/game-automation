@@ -21,9 +21,7 @@ Arena_rewards          = pd.read_excel(DATA_FILENAME, sheet_name="Arena Rewards"
 
 def main():
     digimon_world = Digimon_World()
-    digimon_world.initialize_game_state()
-    digimon_world.print_game_state()
-    # digimon_world.run_script(keys_to_hold=[Key.down, Key.right])
+    digimon_world.run_script()
 
 
 
@@ -34,19 +32,22 @@ class Digimon_World(game_automation):
         super(Digimon_World, self).__init__()
         self.address_values = {key: None for key in WATCH_KEYS}
         self.process, self.psx_base = attach_process()
-        self.initialize_game_state()
+        # self.initialize_game_state()
         self._closed = False
 
     def main(self):
-        self.initialize_state()
-        self.Mojyamon_arbitrage()
+        self.initialize_game_state()
+        self.execute_script = False
+        # self.Mojyamon_arbitrage()
 
 # ==========================  GAME STATE READING   ===============================
 
     def initialize_game_state(self):
         # Run at the top of the opening menu
-        # self.boot_up_game()
+        self.boot_up_game()
         self.update_game_state()
+        self.print_game_state()
+        self.exit_Jijimons_house()
         
     def update_game_state(self):
         for address_name in self.address_values:
@@ -82,12 +83,16 @@ class Digimon_World(game_automation):
 
 # ==========================   INPUTS TO GAME   ===============================
 
-    def boot_up_game():
+    def boot_up_game(self):
         # Run at the top of the opening menu
-        pass
+        self.execute_inputs([Key.down, "z", ("z",0.1,1.8), "z", ("z",0.1,7)])
+
+    def exit_Jijimons_house(self):
+        self.execute_inputs([(Key.right, 2)])
 
     def Mojyamon_arbitrage(self):
         # Eventually should begin and end at Jijimon"s house
+        self.keys_to_hold = [Key.down, Key.right]
         self.execute_inputs(["z"])
 
     def Restock(self):

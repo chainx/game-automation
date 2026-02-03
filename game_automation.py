@@ -15,10 +15,12 @@ keyboard = Controller()
 
 class game_automation:
     def __init__(self):
+        self.execution_key = Key.f10
         self.execute_script = False
         self.has_desynced = False
         self.has_previously_desynced = False
         self.count = 0 # Counts number of cycles executed
+        self.keys_to_hold = []
 
     def main(self): 
         pass # Overwritten by parent class
@@ -27,7 +29,7 @@ class game_automation:
         pass # Overwritten by parent class
 
     def on_press(self, key):
-        if key == Key.f10:
+        if key == self.execution_key:
             self.execute_script = not self.execute_script
 
     def run_script(self, keys_to_hold=None):
@@ -37,7 +39,7 @@ class game_automation:
             if self.execute_script:
 
                 # Used to hold a button down during a cycle
-                for key in keys_to_hold:
+                for key in self.keys_to_hold:
                     keyboard.press(key)
                 
                 original_state = copy.deepcopy(self.__dict__)
@@ -54,17 +56,20 @@ class game_automation:
                     if self.count%5 == 0:
                         print(f'Number of cycles: {self.count}')
             elif self.count>0:
-                for key in keys_to_hold:
+                for key in self.keys_to_hold:
                     keyboard.release(key)
                 self.print_state_variables()
                 self.count = 0
 
     # ================   AUTOMATION OF INPUTS   ==================
 
-    def key_press(self, key, hold=0.05, wait=0.08):
-        keyboard.press(key)
+    def key_press(self, keys, hold=0.05, wait=0.08):
+        keys = (keys,) if not isinstance(keys, (tuple, list)) else tuple(keys)
+        for key in keys:
+            keyboard.press(key)
         time.sleep(hold)
-        keyboard.release(key)
+        for key in keys:
+            keyboard.release(key)
         time.sleep(wait)
 
     def execute_inputs(self, inputs):

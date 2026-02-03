@@ -1,48 +1,64 @@
 import psutil, ctypes as ct, time
 from dw1_addresses import ADDRESSES
 
-def psx_offset(address_str):
-    prefix = "PSXBaseAddress+"
-    if not address_str.startswith(prefix):
-        raise ValueError(f"Unsupported address format: {address_str}")
-    return int(address_str[len(prefix):], 16)
-
 WATCH_KEYS = {
     "Care Mistakes": '"Condition"/"Care Mistakes"',
     "IsHungry": '"Condition Flag"/"Hungry"',
+    "NeedsPoop": '"Condition Flag"/"Poop"',
+    "Sleepy": '"Condition Flag"/"Sleepy"',
     "Tiredness": '"Condition"/"Tiredness (0-100)"',
     "Happiness": '"Condition"/"Happiness"',
     "Energy Level": '"Condition"/"Energy Level"',
     "Weight": '"Condition"/"Weight"',
     "Lifespan": '"Condition"/"Remaining Lifetime (Hours)"',
     "Age since Digivolution": '"Condition"/"Age in hours (for evolve)"',
-    "Condition Flag": '"Condition Flag"',
-    "Timers/Back Dimension": '" 28 - Back Dimension Timer"',
-    "Timers/Drimogemon": '" 30 - Drimogemon/Treasure Hunt Timer"',
-    "Timers/Hungry": '"Condition"/"Hungry Timer"',
-    "Timers/Pooping": '"Condition"/"Pooping Timer"',
-    "Timers/Sickness": '"Condition"/"SicknessTimer"',
-    "Timers/Starvation": '"Condition"/"Starvation Timer"',
-    "Timers/Tiredness Hunger": '"Condition"/"Tiredness Hunger Timer"',
-    "Timers/Tiredness Sleep": '"Condition"/"Sleep"/"Tiredness Sleep Timer"',
-    "Timers/Training Boost": '"Condition"/"Training Boost"/"Training Boost Timer"',
+
+    "Hungry": '"Condition"/"Hungry Timer"',
+    "Pooping": '"Condition"/"Pooping Timer"',
+    "Sickness": '"Condition"/"SicknessTimer"',
+    "Starvation": '"Condition"/"Starvation Timer"',
+    "Tiredness Hunger": '"Condition"/"Tiredness Hunger Timer"',
+    "Tiredness Sleep": '"Condition"/"Sleep"/"Tiredness Sleep Timer"',
+    "Training Boost": '"Condition"/"Training Boost"/"Training Boost Timer"',
+
     "Off": '"Parameter"/"Off"',
     "Def": '"Def"',
     "Speed": '"Parameter"/"Speed"',
     "Brains": '"Parameter"/"Brains"',
     "HP": '"Parameter"/"HP"',
     "MP": '"Parameter"/"MP"',
+
     "Bits": '"Parameter"/"Bits"',
     "Tournaments won": '"Tournaments won"',
-    "Time/Year": '"Time"/"Year"',
-    "Time/Day": '"Time"/"Day"',
-    "Time/Hour": '"Time"/"Hour"',
-    "Time/Minute": '"Time"/"Minute"',
+    "Tamer Level": '"Tamer Values"/"Parameter"/"Tamer Level"',
+
+    "Year": '"Time"/"Year"',
+    "Day": '"Time"/"Day"',
+    "Hour": '"Time"/"Hour"',
+    "Minute": '"Time"/"Minute"',
+
     "Took Meat": '"Took Meat"',
     "Drimogemon Days passed": '"Drimogemon Days passed"',
+    "Drimogemon": '" 30 - Drimogemon/Treasure Hunt Timer"',
+    "Back Dimension": '" 28 - Back Dimension Timer"',
+
     "Inventory Pointer": '"Inventory Pointer"',
     "Inventory Size": '"Inventory Size"',
+    "Slot1/Item Amount": '"Tamer Values"/"Inventory"/"Default"/"Slot 1"/"Item Amount"',
+    "Slot1/Item Name": '"Tamer Values"/"Inventory"/"Default"/"Slot 1"/"Item Name"',
+    "Slot1/Item Type": '"Tamer Values"/"Inventory"/"Default"/"Slot 1"/"Item Type"',
+
+    "Current Screen ID": '"Technical Values"/"Current Screen ID"',
+    "Location X": '"Tamer Values"/"Parameter"/"Location X"',
+    "Location Y": '"Tamer Values"/"Parameter"/"Location Y"',
+    "Location Z": '"Tamer Values"/"Parameter"/"Location Z"',
 }
+
+def psx_offset(address_str):
+    prefix = "PSXBaseAddress+"
+    if not address_str.startswith(prefix):
+        raise ValueError(f"Unsupported address format: {address_str}")
+    return int(address_str[len(prefix):], 16)
 
 WATCH_OFFSETS = {
     label: psx_offset(ADDRESSES[key]["address"])
@@ -76,18 +92,6 @@ def get_address_value(address_name, process=None, psx_base=None, target="psxfin.
     finally:
         if close_process and process:
             K.CloseHandle(process)
-
-# =========================================================
-
-def find_address_key(keywords):
-    for keyword in keywords:
-        keyword_lower = keyword.lower()
-        for key in ADDRESSES:
-            if keyword_lower in key.lower():
-                return key
-    raise KeyError(f"No address key found for keywords: {keywords}")
-
-# =========================================================
 
 def get_psx_base(process, delta=0x90800, verbose=False):
     pat = bytes.fromhex(
@@ -125,6 +129,14 @@ def read_value_by_type(h, addr, value_type):
         return read_mem(h, addr, 2)
     # Byte and Binary default to 1 byte
     return read_mem(h, addr, 1)
+
+def find_address_key(keywords):
+    for keyword in keywords:
+        keyword_lower = keyword.lower()
+        for key in ADDRESSES:
+            if keyword_lower in key.lower():
+                return key
+    raise KeyError(f"No address key found for keywords: {keywords}")
 
 def print_watch_values(target="psxfin.exe", verbose=False):
     pid = pid_by_name(target)
