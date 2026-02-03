@@ -3,7 +3,7 @@ import datetime
 import os
 import numpy as np
 import pytesseract
-import easyocr
+# import easyocr    No longer imported due to reliance on Numpy 1.X
 from collections import Counter
 from pathlib import Path
 from pynput.keyboard import Key
@@ -18,9 +18,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from game_automation import game_automation
 from image_to_text import find_items_to_sell, clean_image, isolate_text, partition_screenshot
 
-save_path = Path('Reference images')
+save_path = Path('Makai_Kingdom/Reference images')
 
-easyOCRreader = easyocr.Reader(['en'])
+easyOCRreader = None # easyocr.Reader(['en'])
 
 # I use different key bindings on Windows and Linux due to conflicts with my key binds on Linux
 linux_or_windows = 'windows' if os.name=='nt' else 'linux'

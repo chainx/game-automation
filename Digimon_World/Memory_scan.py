@@ -1,22 +1,26 @@
 import psutil, ctypes as ct
-    
-def get_address_values():
-    TARGET, DELTA, OFF = "psxfin.exe", 0x90800, 0x1384A8
+
+def main():
+    address_value = get_address_values(0x90800, 0x1384A8)
+    print(address_value)
+
+# =========================================================
+
+def get_address_values(DELTA, OFF, TARGET="psxfin.exe"):
     PAT = bytes.fromhex(
         "a0 00 0a 24 08 00 40 01 44 00 09 24 00 00 00 00 "
         "a0 00 0a 24 08 00 40 01 49 00 09 24 00 00 00 00 "
         "a0 00 0a 24 08 00 40 01 70 00 09 24 00 00 00 00 "
         "a0 00 0a 24 08 00 40 01 72 00 09 24 00 00 00 00"
     )
-
     pid = pid_by_name(TARGET)
-    h = open_process(pid)
+    process = open_process(pid)
     try:
-        code_start = aob_scan_first(h, PAT)
+        code_start = aob_scan_first(process, PAT)
         psx_base = code_start - DELTA
-        return read_u16(h, psx_base + OFF)
+        return read_u16(process, psx_base + OFF)
     finally:
-        K.CloseHandle(h)
+        K.CloseHandle(process)
 
 # =========================================================
 
