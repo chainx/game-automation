@@ -1,4 +1,24 @@
 import psutil, ctypes as ct
+    
+def get_address_values():
+    TARGET, DELTA, OFF = "psxfin.exe", 0x90800, 0x1384A8
+    PAT = bytes.fromhex(
+        "a0 00 0a 24 08 00 40 01 44 00 09 24 00 00 00 00 "
+        "a0 00 0a 24 08 00 40 01 49 00 09 24 00 00 00 00 "
+        "a0 00 0a 24 08 00 40 01 70 00 09 24 00 00 00 00 "
+        "a0 00 0a 24 08 00 40 01 72 00 09 24 00 00 00 00"
+    )
+
+    pid = pid_by_name(TARGET)
+    h = open_process(pid)
+    try:
+        code_start = aob_scan_first(h, PAT)
+        psx_base = code_start - DELTA
+        return read_u16(h, psx_base + OFF)
+    finally:
+        K.CloseHandle(h)
+
+# =========================================================
 
 K = ct.windll.kernel32
 
@@ -44,23 +64,7 @@ def read_u16(h, addr):
         raise ct.WinError(ct.get_last_error())
     return v.value
 
-def main():
-    TARGET, DELTA, OFF = "psxfin.exe", 0x90800, 0x1384A8
-    PAT = bytes.fromhex(
-        "a0 00 0a 24 08 00 40 01 44 00 09 24 00 00 00 00 "
-        "a0 00 0a 24 08 00 40 01 49 00 09 24 00 00 00 00 "
-        "a0 00 0a 24 08 00 40 01 70 00 09 24 00 00 00 00 "
-        "a0 00 0a 24 08 00 40 01 72 00 09 24 00 00 00 00"
-    )
 
-    pid = pid_by_name(TARGET)
-    h = open_process(pid)
-    try:
-        code_start = aob_scan_first(h, PAT)
-        psx_base = code_start - DELTA
-        print(read_u16(h, psx_base + OFF))
-    finally:
-        K.CloseHandle(h)
 
 if __name__ == "__main__":
     main()

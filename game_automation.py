@@ -35,8 +35,11 @@ class game_automation:
         listener.start()
         while True:
             if self.execute_script:
+
+                # Used to hold a button down during a cycle
                 for key in keys_to_hold:
                     keyboard.press(key)
+                
                 original_state = copy.deepcopy(self.__dict__)
                 self.main()
                 if self.has_desynced and self.execute_script:
