@@ -1,5 +1,6 @@
 import time
 import sys
+import copy
 from pynput.keyboard import Key, Controller, Listener
 from ewmh import EWMH
 import pyautogui
@@ -16,6 +17,7 @@ class game_automation:
     def __init__(self):
         self.execute_script = False
         self.has_desynced = False
+        self.has_previously_desynced = False
         self.count = 0 # Counts number of cycles executed
 
     def main(self): 
@@ -35,12 +37,16 @@ class game_automation:
             if self.execute_script:
                 for key in keys_to_hold:
                     keyboard.press(key)
+                original_state = copy.deepcopy(self.__dict__)
                 self.main()
-                if self.has_desynced:
+                if self.has_desynced and self.execute_script:
                     print('Desync detected!')
-                    self.has_desynced = True
+                    self.__dict__ = copy.deepcopy(original_state)
+                    self.has_desynced = False
+                    self.has_previously_desynced = True
                     self.key_press(Key.f3, wait=1.5)
                 else:
+                    self.has_previously_desynced = False
                     self.count += 1
                     if self.count%5 == 0:
                         print(f'Number of cycles: {self.count}')
