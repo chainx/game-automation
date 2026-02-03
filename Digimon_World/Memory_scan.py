@@ -1,15 +1,59 @@
 import psutil, ctypes as ct, time
 from dw1_addresses import ADDRESSES
 
+WATCH_KEYS = {
+    "Care Mistakes": '"Condition"/"Care Mistakes"',
+    "IsHungry": '"Condition Flag"/"Hungry"',
+    "Tiredness": '"Condition"/"Tiredness (0-100)"',
+    "Happiness": '"Condition"/"Happiness"',
+    "Energy Level": '"Condition"/"Energy Level"',
+    "Weight": '"Condition"/"Weight"',
+    "Lifespan": '"Condition"/"Remaining Lifetime (Hours)"',
+    "Age since Digivolution": '"Condition"/"Age in hours (for evolve)"',
+    "Condition Flag": '"Condition Flag"',
+    "Timers/Back Dimension": '" 28 - Back Dimension Timer"',
+    "Timers/Drimogemon": '" 30 - Drimogemon/Treasure Hunt Timer"',
+    "Timers/Hungry": '"Condition"/"Hungry Timer"',
+    "Timers/Pooping": '"Condition"/"Pooping Timer"',
+    "Timers/Sickness": '"Condition"/"SicknessTimer"',
+    "Timers/Starvation": '"Condition"/"Starvation Timer"',
+    "Timers/Tiredness Hunger": '"Condition"/"Tiredness Hunger Timer"',
+    "Timers/Tiredness Sleep": '"Condition"/"Sleep"/"Tiredness Sleep Timer"',
+    "Timers/Training Boost": '"Condition"/"Training Boost"/"Training Boost Timer"',
+    "Off": '"Parameter"/"Off"',
+    "Def": '"Def"',
+    "Speed": '"Parameter"/"Speed"',
+    "Brains": '"Parameter"/"Brains"',
+    "HP": '"Parameter"/"HP"',
+    "MP": '"Parameter"/"MP"',
+    "Bits": '"Parameter"/"Bits"',
+    "Tournaments won": '"Tournaments won"',
+    "Time/Year": '"Time"/"Year"',
+    "Time/Day": '"Time"/"Day"',
+    "Time/Hour": '"Time"/"Hour"',
+    "Time/Minute": '"Time"/"Minute"',
+    "Took Meat": '"Took Meat"',
+    "Drimogemon Days passed": '"Drimogemon Days passed"',
+    "Inventory Pointer": '"Inventory Pointer"',
+    "Inventory Size": '"Inventory Size"',
+}
+
+WATCH_OFFSETS = {
+    label: psx_offset(ADDRESSES[key]["address"])
+    for label, key in WATCH_KEYS.items()
+}
+
+
+
 def main():
     lifetime_key = find_address_key(["lifespan", "remaining lifetime (hours)", "remaining lifetime"])
     lifetime_off = psx_offset(ADDRESSES[lifetime_key]["address"])
-    address_value = get_address_values(0x90800, lifetime_off, verbose=False)
+    address_value = get_address_value(0x90800, lifetime_off, verbose=False)
     print(f"{lifetime_key} -> {address_value}")
 
 # =========================================================
 
-def get_address_values(DELTA, OFF, TARGET="psxfin.exe", verbose=False):
+def get_address_value(DELTA, OFF, TARGET="psxfin.exe", verbose=False):
     PAT = bytes.fromhex(
         "a0 00 0a 24 08 00 40 01 44 00 09 24 00 00 00 00 "
         "a0 00 0a 24 08 00 40 01 49 00 09 24 00 00 00 00 "
@@ -95,48 +139,6 @@ def print_watch_values(target="psxfin.exe", verbose=False):
             print(f"{label}: {value}")
     finally:
         K.CloseHandle(process)
-
-WATCH_KEYS = {
-    "Care Mistakes": '"Condition"/"Care Mistakes"',
-    "IsHungry": '"Condition Flag"/"Hungry"',
-    "Tiredness": '"Condition"/"Tiredness (0-100)"',
-    "Happiness": '"Condition"/"Happiness"',
-    "Energy Level": '"Condition"/"Energy Level"',
-    "Weight": '"Condition"/"Weight"',
-    "Lifespan": '"Condition"/"Remaining Lifetime (Hours)"',
-    "Age since Digivolution": '"Condition"/"Age in hours (for evolve)"',
-    "Condition Flag": '"Condition Flag"',
-    "Timers/Back Dimension": '" 28 - Back Dimension Timer"',
-    "Timers/Drimogemon": '" 30 - Drimogemon/Treasure Hunt Timer"',
-    "Timers/Hungry": '"Condition"/"Hungry Timer"',
-    "Timers/Pooping": '"Condition"/"Pooping Timer"',
-    "Timers/Sickness": '"Condition"/"SicknessTimer"',
-    "Timers/Starvation": '"Condition"/"Starvation Timer"',
-    "Timers/Tiredness Hunger": '"Condition"/"Tiredness Hunger Timer"',
-    "Timers/Tiredness Sleep": '"Condition"/"Sleep"/"Tiredness Sleep Timer"',
-    "Timers/Training Boost": '"Condition"/"Training Boost"/"Training Boost Timer"',
-    "Off": '"Parameter"/"Off"',
-    "Def": '"Def"',
-    "Speed": '"Parameter"/"Speed"',
-    "Brains": '"Parameter"/"Brains"',
-    "HP": '"Parameter"/"HP"',
-    "MP": '"Parameter"/"MP"',
-    "Bits": '"Parameter"/"Bits"',
-    "Tournaments won": '"Tournaments won"',
-    "Time/Year": '"Time"/"Year"',
-    "Time/Day": '"Time"/"Day"',
-    "Time/Hour": '"Time"/"Hour"',
-    "Time/Minute": '"Time"/"Minute"',
-    "Took Meat": '"Took Meat"',
-    "Drimogemon Days passed": '"Drimogemon Days passed"',
-    "Inventory Pointer": '"Inventory Pointer"',
-    "Inventory Size": '"Inventory Size"',
-}
-
-WATCH_OFFSETS = {
-    label: psx_offset(ADDRESSES[key]["address"])
-    for label, key in WATCH_KEYS.items()
-}
 
 K = ct.windll.kernel32
 

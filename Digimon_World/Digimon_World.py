@@ -7,7 +7,7 @@ import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
-from memory_scan import get_address_values, print_watch_values
+from memory_scan import WATCH_KEYS, get_address_value, print_watch_values
 from dw1_addresses import ADDRESSES
 
 DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
@@ -33,6 +33,7 @@ class Digimon_World(game_automation):
     def __init__(self):
         super(Digimon_World, self).__init__()
         self.initialize_state()
+        self.address_values = {key: None for key in WATCH_KEYS}
 
     def main(self):
         self.Mojyamon_arbitrage()
@@ -46,8 +47,8 @@ class Digimon_World(game_automation):
         
 
     def update_game_state(self):
-        for address, value in self.address_values.items():
-            self.care_mistakes = get_value()
+        for address_name in self.address_values:
+            self.address_values[address_name] = get_address_value(address_name)
 
     def Mojyamon_arbitrage(self):
         # Eventually should begin and end at Jijimon"s house
