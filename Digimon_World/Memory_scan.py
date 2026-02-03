@@ -1,6 +1,12 @@
 import psutil, ctypes as ct, time
 from dw1_addresses import ADDRESSES
 
+def psx_offset(address_str):
+    prefix = "PSXBaseAddress+"
+    if not address_str.startswith(prefix):
+        raise ValueError(f"Unsupported address format: {address_str}")
+    return int(address_str[len(prefix):], 16)
+
 WATCH_KEYS = {
     "Care Mistakes": '"Condition"/"Care Mistakes"',
     "IsHungry": '"Condition Flag"/"Hungry"',
@@ -47,33 +53,29 @@ WATCH_OFFSETS = {
 
 def main():
     lifetime_key = find_address_key(["lifespan", "remaining lifetime (hours)", "remaining lifetime"])
-    lifetime_off = psx_offset(ADDRESSES[lifetime_key]["address"])
-    address_value = get_address_value(0x90800, lifetime_off, verbose=False)
+    address_value = get_address_value(lifetime_key, verbose=False)
     print(f"{lifetime_key} -> {address_value}")
 
 # =========================================================
 
-def get_address_value(DELTA, OFF, TARGET="psxfin.exe", verbose=False):
-    PAT = bytes.fromhex(
-        "a0 00 0a 24 08 00 40 01 44 00 09 24 00 00 00 00 "
-        "a0 00 0a 24 08 00 40 01 49 00 09 24 00 00 00 00 "
-        "a0 00 0a 24 08 00 40 01 70 00 09 24 00 00 00 00 "
-        "a0 00 0a 24 08 00 40 01 72 00 09 24 00 00 00 00"
-    )
-    pid = pid_by_name(TARGET)
-    if pid is None:
-        raise RuntimeError(f"Process not found: {TARGET}")
-    if verbose:
-        print(f"Found {TARGET} with PID {pid}")
-    process = open_process(pid)
+def get_address_value(address_name, process=None, psx_base=None, target="psxfin.exe", verbose=False):
+    address_key = WATCH_KEYS.get(address_name, address_name)
+    entry = ADDRESSES.get(address_key)
+    if not entry:
+        raise KeyError(f"Unknown address name: {address_name}")
+    off = psx_offset(entry["address"])
+    close_process = False
+    if process is None:
+        process, psx_base = attach_process(target=target, verbose=verbose)
+        close_process = True
     try:
-        code_start = aob_scan_first(process, PAT, max_scan_seconds=15, verbose=verbose)
-        psx_base = code_start - DELTA
+        addr = psx_base + off
         if verbose:
-            print(f"AOB at 0x{code_start:08X}; base 0x{psx_base:08X}; read addr 0x{(psx_base + OFF):08X}")
-        return read_u16(process, psx_base + OFF)
+            print(f"{address_name}: base 0x{psx_base:08X} + off 0x{off:08X} = 0x{addr:08X}")
+        return read_value_by_type(process, addr, entry.get("type"))
     finally:
-        K.CloseHandle(process)
+        if close_process and process:
+            K.CloseHandle(process)
 
 # =========================================================
 
@@ -84,12 +86,6 @@ def find_address_key(keywords):
             if keyword_lower in key.lower():
                 return key
     raise KeyError(f"No address key found for keywords: {keywords}")
-
-def psx_offset(address_str):
-    prefix = "PSXBaseAddress+"
-    if not address_str.startswith(prefix):
-        raise ValueError(f"Unsupported address format: {address_str}")
-    return int(address_str[len(prefix):], 16)
 
 # =========================================================
 
@@ -102,6 +98,18 @@ def get_psx_base(process, delta=0x90800, verbose=False):
     )
     code_start = aob_scan_first(process, pat, max_scan_seconds=15, verbose=verbose)
     return code_start - delta
+
+def attach_process(target="psxfin.exe", verbose=False):
+    pid = pid_by_name(target)
+    if pid is None:
+        raise RuntimeError(f"Process not found: {target}")
+    if verbose:
+        print(f"Found {target} with PID {pid}")
+    process = open_process(pid)
+    psx_base = get_psx_base(process, verbose=verbose)
+    if verbose:
+        print(f"PSX base: 0x{psx_base:08X}")
+    return process, psx_base
 
 def read_mem(h, addr, size):
     buf, rd = (ct.c_ubyte * size)(), ct.c_size_t()
