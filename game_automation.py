@@ -17,6 +17,7 @@ class game_automation:
     def __init__(self):
         self.execution_key = Key.f10
         self.reload_key = Key.f3
+        self.print_game_state_at_end = False
         self.execute_script = False
         self.has_desynced = False
         self.has_previously_desynced = False
@@ -59,7 +60,8 @@ class game_automation:
             elif self.count>0:
                 for key in self.keys_to_hold:
                     keyboard.release(key)
-                self.print_game_state()
+                if self.print_game_state_at_end:
+                    self.print_game_state()
                 self.count = 0
 
     # ================   AUTOMATION OF INPUTS   ==================

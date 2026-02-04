@@ -1,5 +1,6 @@
 import pandas as pd
 import time
+import copy
 from pathlib import Path
 from pynput.keyboard import Key
 
@@ -28,17 +29,19 @@ class Digimon_World(game_automation):
         self.address_values = {key: None for key in WATCH_KEYS}
         self.process, self.psx_base = attach_process()
         self._closed = False
+        print("Ready to run!")
 
     def main(self):
-        self.practice_task(self.auto_pilot_home)
-        # self.digipine_farming()
+        # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
+        # self.practice_task(self.to_Jijimons_house, task_location=179)
+        self.digipine_farming()
 
 # ==========================   TASK PIPELINES   ===============================
 
     def digipine_farming(self):
         requirements = {
             "Care mistakes": "same",
-            "Item/Digipines": "plus 1",
+            "Item/Digipine": "plus 1",
         }
         tasks = [
             self.boot_up_game,
@@ -53,26 +56,18 @@ class Digimon_World(game_automation):
             self.to_Jijimons_house,
             (self.save_game, requirements),
         ]
-        self.execute_task_list(tasks)
+        self.execute_task_list(tasks, verbose=True)
         self.execute_script = False
 
 # ==========================   TASK EXECUTION   ===============================
 
-    def execute_task_list(self, tasks):
+    def execute_task_list(self, tasks, verbose=False):
         for task in tasks:
             self.execute_task(task)
             if self.has_desynced:
                 print(f"Desynced on task: {self.task_name}")
                 return
-            
-            self.update_game_state()
-
-            if self.destination_ID:
-                if self.location_ID!=self.destination_ID:
-                    self.wait_for_screen_transition(self.destination_ID, verbose=True)
-                else:
-                    print("Task executed too late", self.location_ID)
-                self.destination_ID = None
+            self.waiting(verbose)
 
     def execute_task(self, task):
         if isinstance(task, tuple):
@@ -85,9 +80,21 @@ class Digimon_World(game_automation):
 
     def practice_task(self, task, task_location=None):
         if task_location:
+            self.location_ID = 0
             self.wait_for_screen_transition(task_location, verbose=True)
         self.execute_task(task)
+        self.waiting(verbose=True)
         self.execute_script = False
+
+    def waiting(self, verbose=False):
+        if self.destination_ID:
+            self.update_game_state()
+            if self.location_ID!=self.destination_ID:
+                self.wait_for_screen_transition(self.destination_ID, verbose)
+                if self.has_desynced: return
+            else:
+                print("Task executed too late", self.location_ID)
+            self.destination_ID = None
 
     def wait_for_screen_transition(self, destination_ID, verbose=False):
         count = 0
@@ -96,6 +103,7 @@ class Digimon_World(game_automation):
             self.update_game_state()
             count+=1
             if count == 20: # Wait at most 2 seconds
+                print("Didn't reach screen transition")
                 self.has_desynced = True
                 return
         if verbose:
@@ -131,7 +139,7 @@ class Digimon_World(game_automation):
     def check_requirements(self, requirements):
         self.update_game_state()
         proceed = True
-        for (address, requirement_type) in requirements:
+        for address, requirement_type in requirements.items():
             if "Item/" in address:
                 item_name = address[5:]
                 location = self.inventory[item_name]["Location"]
@@ -140,6 +148,9 @@ class Digimon_World(game_automation):
                 proceed = proceed and (self.address_values[address] == self.initial_address_values[address])
             if requirement_type == "plus 1":
                 proceed = proceed and (self.address_values[address] == self.initial_address_values[address] + 1)
+            if not proceed:
+                print(f"Requirement not met: {address}, {requirement_type}")
+                print(self.address_values[address], self.initial_address_values[address])
         return proceed
 
     def print_game_state(self):
@@ -159,12 +170,13 @@ class Digimon_World(game_automation):
             self.has_desynced = True
             return
         item_location = self.inventory[item_name]["Location"]
-        self.execute_inputs([("z", 0.7)])
+        self.execute_inputs([("a", 0.3), ("z", 0.9)])
         if item_location % 2 == 1:
             self.execute_inputs([Key.right])
         for n in range(item_location//2):
             self.execute_inputs([Key.down])
         self.execute_inputs([("z", 0.25), "z"])
+        time.sleep(3)
         # Include logic to handle scolding
 
     def care_taking(self, food_preference="Sirloin"):
@@ -190,9 +202,9 @@ class Digimon_World(game_automation):
         """ Begins at the top of the opening menu """
         self.task_name = "boot_up_game"
         self.destination_ID = 205
-        self.execute_inputs([(Key.down,0.03,0), "z", ("z",0.1,1.8), "z", ("z",0.1,4)])
+        self.execute_inputs([(Key.down,0.01,0), "z", ("z",0.1,1.8), "z", ("z",0.1,4)])
         self.update_game_state()
-        self.initial_address_values = self.address_values
+        self.initial_address_values = copy.deepcopy(self.address_values)
 
     def exit_Jijimons_house(self):
         self.task_name = "exit_Jijimons_house"
@@ -202,7 +214,7 @@ class Digimon_World(game_automation):
     def to_Jijimons_house(self):
         self.task_name = "to_Jijimons_house"
         self.destination_ID = 205
-        self.execute_inputs([ ((Key.up,Key.left), 0.3), (Key.up,1.5) ])
+        self.execute_inputs([ ((Key.up,Key.left), 2.7), (Key.up,3.5) ])
 
     def to_Birdamon(self, From="Jijimons house"):
         self.task_name = "to_Birdamon"
@@ -213,50 +225,52 @@ class Digimon_World(game_automation):
     def warp_to(self, location):
         self.task_name = "warp_to"
         location_info = {
-            "Great Canyon Top":    [0, ],
-            "Gear Savana":         [1, ],
-            "Ancient Dino Region": [2, ],
-            "Freezeland":          [3, ],
+            "Great Canyon Top":    [0, 38],
+            "Gear Savana":         [1, 70],
+            "Ancient Dino Region": [2, 79],
+            "Freezeland":          [3, 93],
             "Misty Trees":         [4, 119],
-            "Beetle Land":         [5, ],
+            "Beetle Land":         [5, 105],
         }
         down_presses = location_info[location][0]
-        self.destinattion_ID = location_info[location][1]
+        self.destination_ID = location_info[location][1]
 
         self.execute_inputs([ ((Key.up,Key.right), 1.3), ("z",0.7), ("z",0.5) ])
         for n in range(down_presses):
             self.execute_inputs([(Key.down,0.1)])
-        self.execute_inputs(["z", ("z",0.5), ("z",0.5), "z"])
+        self.execute_inputs(["z", ("z",0.5), ("z",0.5), ("z",1.5)])
 
     def auto_pilot_home(self):
         self.task_name = "auto_pilot_home"
-        self.destinattion_ID = 179
+        self.destination_ID = 179
         self.use_item("Auto Pilot")
-        time.sleep(1)
+        time.sleep(2)
 
 
 
     def misty_trees_rng_manip_part1(self, testing=False):
         self.task_name = "misty_trees_rng_manip_part1"
-        self.destinattion_ID = 121
+        self.destination_ID = 121
         
+        time.sleep(2.7)
         for n in range(10):
             self.execute_inputs([(Key.right,0.35), (Key.left,0.2)])
             self.update_game_state()
             if self.rng == 228325532: break
         if self.rng != 228325532:
+            print("RNG value wrong")
             self.has_desynced = True
 
-        self.execute_inputs([(Key.right,2)])
+        self.execute_inputs([(Key.right,2.5)])
         
     def misty_trees_rng_manip_part2(self):
         self.task_name = "misty_trees_rng_manip_part2"
-        self.destinattion_ID = 119
-        self.execute_inputs([(Key.left,3)])
+        self.destination_ID = 119
+        self.execute_inputs([(Key.left,3.5)])
 
     def misty_trees_rng_manip_part3(self):
         self.task_name = "misty_trees_rng_manip_part3"
-        self.execute_inputs([ ((Key.down, Key.left),6), (Key.left,2), ("z", 0.3), "a"])
+        self.execute_inputs([ ((Key.down, Key.left),6), (Key.left,2), ("z", 1.5)])
 
 
 
