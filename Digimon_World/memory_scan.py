@@ -55,9 +55,8 @@ WATCH_KEYS = {
 for n in range(30):
     batches = ["Default", "Extension 1", "Extension 2"]
     batch = batches[n//10]
+    WATCH_KEYS[f"Slot{n}/Name"]   = f'"Tamer Values"/"Inventory"/"{batch}"/"Slot {n+1}"/"Item Type"'
     WATCH_KEYS[f"Slot{n}/Amount"] = f'"Tamer Values"/"Inventory"/"{batch}"/"Slot {n+1}"/"Item Amount"'
-    WATCH_KEYS[f"Slot{n}/Name"]   = f'"Tamer Values"/"Inventory"/"{batch}"/"Slot {n+1}"/"Item Name"',
-    WATCH_KEYS[f"Slot{n}/Type"]   = f'"Tamer Values"/"Inventory"/"{batch}"/"Slot {n+1}"/"Item Type"',
 
 def psx_offset(address_str):
     prefix = "PSXBaseAddress+"

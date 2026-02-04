@@ -3,6 +3,18 @@ import pandas as pd
 DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
 
 Map_setup = pd.read_excel(DATA_FILENAME, sheet_name="Map Setup")
+Items = pd.read_excel(DATA_FILENAME, sheet_name="Items")
+
+ITEMS = (
+    Items[["ID", "Name"]]
+    .assign(
+        ID=lambda df: pd.to_numeric(df["ID"], errors="coerce")
+    )
+    .dropna(subset=["ID"])
+    .assign(ID=lambda df: df["ID"].astype(int))
+    .set_index("ID")["Name"]
+    .to_dict()
+)
 
 LOCATIONS = (
     Map_setup[["ID", "Name", "Description"]]

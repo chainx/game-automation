@@ -8,14 +8,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
 from memory_scan import WATCH_KEYS, get_address_value, print_watch_values, attach_process
-from dw1_addresses import LOCATIONS, ADDRESSES
+from dw1_addresses import ITEMS, ADDRESSES
 
 DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
 
 Evolution_requirements = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Evolution")
 Food                   = pd.read_excel(DATA_FILENAME, sheet_name="Food")
 Digimon_raise          = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Raise")
-Item_spawns            = pd.read_excel(DATA_FILENAME, sheet_name="Item Spawns (NTSC-U)")
 Arena_rewards          = pd.read_excel(DATA_FILENAME, sheet_name="Arena Rewards")
 
 def main():
@@ -122,11 +121,12 @@ class Digimon_World(game_automation):
     def update_inventory(self):
         self.inventory = {}
         for n in range(30):
-            self.inventory[self.address_values[f"Slot{n}/Name"]] = {
-                "Location": n,
-                "Amount": self.address_values[f"Slot{n}/Amount"],
-                "Type": self.address_values[f"Slot{n}/Type"]
-            }
+            item_name = ITEMS.get(self.address_values[f"Slot{n}/Name"], None)
+            if item_name:
+                self.inventory[item_name] = {
+                    "Location": n,
+                    "Amount": self.address_values[f"Slot{n}/Amount"],
+                }
     
     def check_requirements(self, requirements):
         self.update_game_state()
@@ -144,7 +144,10 @@ class Digimon_World(game_automation):
 
     def print_game_state(self):
         for address, address_value in self.address_values.items():
-            print(address, address_value)
+            if "Slot" not in address:
+                print(address, address_value)
+        for item_name, item_info in self.inventory.items():
+            print(item_name, item_info)
 
 # ==========================   TASK INPUTS   ===============================
 
@@ -156,7 +159,7 @@ class Digimon_World(game_automation):
             self.has_desynced = True
             return
         item_location = self.inventory[item_name]["Location"]
-        self.execute_inputs([("z", 0.35)])
+        self.execute_inputs([("z", 0.7)])
         if item_location % 2 == 1:
             self.execute_inputs([Key.right])
         for n in range(item_location//2):
