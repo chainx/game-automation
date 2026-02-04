@@ -49,6 +49,7 @@ WATCH_KEYS = {
     "Slot1/Item Type": '"Tamer Values"/"Inventory"/"Default"/"Slot 1"/"Item Type"',
 
     "Current Screen ID": '"Technical Values"/"Current Screen ID"',
+    "RNG": '"Current RNG"',
     "Location X": '"Tamer Values"/"Parameter"/"Location X"',
     "Location Y": '"Tamer Values"/"Parameter"/"Location Y"',
     "Location Z": '"Tamer Values"/"Parameter"/"Location Z"',

@@ -40,8 +40,17 @@ class Digimon_World(game_automation):
             self.boot_up_game: 205,
             self.exit_Jijimons_house: 179,
             self.to_Birdamon: 207,
-            (self.warp_to, ("Misty Trees",)): 119
+            (self.warp_to, ("Misty Trees",)): 119,
+            self.misty_trees_rng_manip_part1: 121,
+            self.misty_trees_rng_manip_part2: 119,
+            self.misty_trees_rng_manip_part3: 179,
+            # self.to_Jijimons_house: 205,
         }
+        self.execute_task_list(tasks)
+        # self.misty_trees_rng_manip_part1(testing=True)
+        self.execute_script = False
+
+    def execute_task_list(self, tasks):
         for task, destination_ID in tasks.items():
             self.execute_task(task)
             self.update_game_state()
@@ -49,8 +58,6 @@ class Digimon_World(game_automation):
                 self.wait_for_screen_transition(destination_ID, verbose=True)
             else:
                 print("Task executed too late", self.location_ID)
-
-        self.execute_script = False
 
     def execute_task(self, task):
         if isinstance(task, tuple):
@@ -88,6 +95,7 @@ class Digimon_World(game_automation):
             self.print_game_state()
 
         self.location_ID = self.address_values["Current Screen ID"]
+        self.rng = self.address_values["RNG"]
 
     def print_game_state(self):
         for address, address_value in self.address_values.items():
@@ -96,11 +104,14 @@ class Digimon_World(game_automation):
 # ==========================   INPUTS TO GAME   ===============================
 
     def boot_up_game(self):
-        # Run at the top of the opening menu
+        """ Run at the top of the opening menu """
         self.execute_inputs([(Key.down,0.03,0), "z", ("z",0.1,1.8), "z", ("z",0.1,4)])
 
     def exit_Jijimons_house(self):
         self.execute_inputs([(Key.right, 3)])
+
+    def to_Jijimons_house(self):
+        self.execute_inputs([ ((Key.up,Key.right), 0.3), (Key.up,1.5) ])
 
     def to_Birdamon(self, From="Jijimons house"):
         if From=="Jijimons house":
@@ -119,6 +130,29 @@ class Digimon_World(game_automation):
         for n in range(down_presses[location]):
             self.execute_inputs([(Key.down,0.1)])
         self.execute_inputs(["z", ("z",0.5), ("z",0.5), "z"])
+
+    def auto_pilot_home(self):
+        self.execute_inputs([("z", 0.35)])
+
+    def misty_trees_rng_manip_part1(self, testing=False):
+        if not testing:
+            time.sleep(2.7)
+        
+        for n in range(10):
+            self.execute_inputs([(Key.right,0.35), (Key.left,0.2)])
+            self.update_game_state()
+            print(self.rng)
+            if self.rng == 228325532: break
+        if self.rng != 228325532:
+            self.has_desynced = True
+
+        self.execute_inputs([(Key.right,2)])
+        
+    def misty_trees_rng_manip_part2(self):
+        self.execute_inputs([(Key.left,3)])
+
+    def misty_trees_rng_manip_part3(self):
+        self.execute_inputs([ ((Key.down, Key.left),6), (Key.left,2), ("z", 0.3), "a"])
 
     def Mojyamon_arbitrage(self):
         # Eventually should begin and end at Jijimon"s house
