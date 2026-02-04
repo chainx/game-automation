@@ -2,13 +2,15 @@ import psutil, ctypes as ct, time
 from dw1_addresses import ADDRESSES
 
 WATCH_KEYS = {
-    "Care Mistakes": '"Condition"/"Care Mistakes"',
-    "IsHungry": '"Condition Flag"/"Hungry"',
-    "NeedsPoop": '"Condition Flag"/"Poop"',
-    "Sleepy": '"Condition Flag"/"Sleepy"',
+    "Care mistakes": '"Condition"/"Care Mistakes"',
+    "Needs food": '"Condition Flag"/"Hungry"',
+    "Needs poop": '"Condition Flag"/"Poop"',
+    "Needs sleep": '"Condition Flag"/"Sleepy"',
+    "Needs scolding": '"Partner Digimon"/"Internal Values"/"Reasonable Scold"',
+    
     "Tiredness": '"Condition"/"Tiredness (0-100)"',
     "Happiness": '"Condition"/"Happiness"',
-    "Energy Level": '"Condition"/"Energy Level"',
+    "Energy level": '"Condition"/"Energy Level"',
     "Weight": '"Condition"/"Weight"',
     "Lifespan": '"Condition"/"Remaining Lifetime (Hours)"',
     "Age since Digivolution": '"Condition"/"Age in hours (for evolve)"',
@@ -17,8 +19,8 @@ WATCH_KEYS = {
     "Pooping": '"Condition"/"Pooping Timer"',
     "Sickness": '"Condition"/"SicknessTimer"',
     "Starvation": '"Condition"/"Starvation Timer"',
-    "Tiredness Hunger": '"Condition"/"Tiredness Hunger Timer"',
-    "Tiredness Sleep": '"Condition"/"Sleep"/"Tiredness Sleep Timer"',
+    "Tiredness hunger": '"Condition"/"Tiredness Hunger Timer"',
+    "Tiredness sleep": '"Condition"/"Sleep"/"Tiredness Sleep Timer"',
     "Training Boost": '"Condition"/"Training Boost"/"Training Boost Timer"',
 
     "Off": '"Parameter"/"Off"',
@@ -42,18 +44,20 @@ WATCH_KEYS = {
     "Drimogemon": '" 30 - Drimogemon/Treasure Hunt Timer"',
     "Back Dimension": '" 28 - Back Dimension Timer"',
 
-    "Inventory Pointer": '"Inventory Pointer"',
-    "Inventory Size": '"Inventory Size"',
-    "Slot1/Item Amount": '"Tamer Values"/"Inventory"/"Default"/"Slot 1"/"Item Amount"',
-    "Slot1/Item Name": '"Tamer Values"/"Inventory"/"Default"/"Slot 1"/"Item Name"',
-    "Slot1/Item Type": '"Tamer Values"/"Inventory"/"Default"/"Slot 1"/"Item Type"',
-
     "Current Screen ID": '"Technical Values"/"Current Screen ID"',
     "RNG": '"Current RNG"',
     "Location X": '"Tamer Values"/"Parameter"/"Location X"',
     "Location Y": '"Tamer Values"/"Parameter"/"Location Y"',
     "Location Z": '"Tamer Values"/"Parameter"/"Location Z"',
 }
+
+# Adding inventory addresses
+for n in range(30):
+    batches = ["Default", "Extension 1", "Extension 2"]
+    batch = batches[n//10]
+    WATCH_KEYS[f"Slot{n}/Amount"] = f'"Tamer Values"/"Inventory"/"{batch}"/"Slot {n+1}"/"Item Amount"'
+    WATCH_KEYS[f"Slot{n}/Name"]   = f'"Tamer Values"/"Inventory"/"{batch}"/"Slot {n+1}"/"Item Name"',
+    WATCH_KEYS[f"Slot{n}/Type"]   = f'"Tamer Values"/"Inventory"/"{batch}"/"Slot {n+1}"/"Item Type"',
 
 def psx_offset(address_str):
     prefix = "PSXBaseAddress+"
@@ -66,7 +70,7 @@ WATCH_OFFSETS = {
     for label, key in WATCH_KEYS.items()
 }
 
-
+K = ct.windll.kernel32
 
 def main():
     lifetime_key = find_address_key(["lifespan", "remaining lifetime (hours)", "remaining lifetime"])
@@ -161,13 +165,6 @@ def print_watch_values(target="psxfin.exe", verbose=False):
     finally:
         K.CloseHandle(process)
 
-K = ct.windll.kernel32
-
-class MBI(ct.Structure):
-    _fields_ = [("BaseAddress", ct.c_void_p), ("AllocationBase", ct.c_void_p),
-                ("AllocationProtect", ct.c_uint32), ("RegionSize", ct.c_size_t),
-                ("State", ct.c_uint32), ("Protect", ct.c_uint32), ("Type", ct.c_uint32)]
-
 def pid_by_name(name):
     name = name.lower()
     return next(
@@ -179,6 +176,11 @@ def open_process(pid):
     h = K.OpenProcess(0x0400 | 0x0010, 0, pid)  # QUERY_INFORMATION | VM_READ
     if not h: raise ct.WinError(ct.get_last_error())
     return h
+
+class MBI(ct.Structure):
+    _fields_ = [("BaseAddress", ct.c_void_p), ("AllocationBase", ct.c_void_p),
+                ("AllocationProtect", ct.c_uint32), ("RegionSize", ct.c_size_t),
+                ("State", ct.c_uint32), ("Protect", ct.c_uint32), ("Type", ct.c_uint32)]
 
 def aob_scan_first(h, pat, chunk=8*1024*1024, max_scan_seconds=15, verbose=False):
     mbi, a = MBI(), 0
@@ -216,12 +218,6 @@ def aob_scan_first(h, pat, chunk=8*1024*1024, max_scan_seconds=15, verbose=False
                     raise RuntimeError(f"AOB scan timed out after {max_scan_seconds}s")
         a = b + sz
     raise RuntimeError("AOB not found")
-
-def read_u16(h, addr):
-    v, rd = ct.c_ushort(), ct.c_size_t()
-    if not (K.ReadProcessMemory(h, ct.c_void_p(addr), ct.byref(v), 2, ct.byref(rd)) and rd.value == 2):
-        raise ct.WinError(ct.get_last_error())
-    return v.value
 
 
 

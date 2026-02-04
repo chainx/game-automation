@@ -16,6 +16,7 @@ keyboard = Controller()
 class game_automation:
     def __init__(self):
         self.execution_key = Key.f10
+        self.reload_key = Key.f3
         self.execute_script = False
         self.has_desynced = False
         self.has_previously_desynced = False
@@ -25,7 +26,7 @@ class game_automation:
     def main(self): 
         pass # Overwritten by parent class
 
-    def print_state_variables(self):
+    def print_game_state(self):
         pass # Overwritten by parent class
 
     def on_press(self, key):
@@ -49,7 +50,7 @@ class game_automation:
                     self.__dict__ = copy.deepcopy(original_state)
                     self.has_desynced = False
                     self.has_previously_desynced = True
-                    self.key_press(Key.f3, wait=1.5)
+                    self.key_press(self.reload_key, wait=1.5)
                 else:
                     self.has_previously_desynced = False
                     self.count += 1
@@ -58,7 +59,7 @@ class game_automation:
             elif self.count>0:
                 for key in self.keys_to_hold:
                     keyboard.release(key)
-                self.print_state_variables()
+                self.print_game_state()
                 self.count = 0
 
     # ================   AUTOMATION OF INPUTS   ==================

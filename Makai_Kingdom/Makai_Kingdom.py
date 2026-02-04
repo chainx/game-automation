@@ -633,7 +633,7 @@ class Makai_Kingdom(game_automation):
             #['s', 's', (Key.right, 0.4), (Key.down, 0.35), Key.right, 'w', 's', 's']
         return inputs
     
-    def print_state_variables(self):
+    def print_game_state(self):
         print(f'Total item count: {self.total_item_count}')
         print(f'First food item index: {self.first_food_item_index}')
         print(f'First star item index: {self.first_star_item_index}')
