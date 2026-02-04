@@ -31,9 +31,12 @@ class Digimon_World(game_automation):
         self._closed = False
         print("Ready to run!")
 
+        self.destination_ID = None
+
     def main(self):
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
-        # self.practice_task(self.to_Jijimons_house, task_location=179)
+        # self.practice_task(self.save_game, task_location=205)
+        # self.practice_task(self.care_taking)
         self.digipine_farming()
 
 # ==========================   TASK PIPELINES   ===============================
@@ -56,8 +59,8 @@ class Digimon_World(game_automation):
             self.to_Jijimons_house,
             (self.save_game, requirements),
         ]
-        self.execute_task_list(tasks, verbose=True)
-        self.execute_script = False
+        self.execute_task_list(tasks)
+        self.execute_inputs([self.reload_key])
 
 # ==========================   TASK EXECUTION   ===============================
 
@@ -102,7 +105,7 @@ class Digimon_World(game_automation):
             time.sleep(0.1)
             self.update_game_state()
             count+=1
-            if count == 20: # Wait at most 2 seconds
+            if count == 25: # Wait at most 2.5 seconds
                 print("Didn't reach screen transition")
                 self.has_desynced = True
                 return
@@ -176,33 +179,37 @@ class Digimon_World(game_automation):
         for n in range(item_location//2):
             self.execute_inputs([Key.down])
         self.execute_inputs([("z", 0.25), "z"])
-        time.sleep(3)
+        time.sleep(4)
         # Include logic to handle scolding
 
     def care_taking(self, food_preference="Sirloin"):
         self.task_name = "care_taking"
         self.update_game_state()
 
-        if self.address_values["Needs poop"]:
+        condition_flag = self.address_values["Condition flag"]
+        sleepy, tired, hungry, poop, unhappy, injured, sick, _ = map(int, format(condition_flag, "08b")[::-1])
+        if poop:
             self.use_item("Port. potty")
-        if self.address_values["Needs food"]:
+        if hungry:
             self.use_item(food_preference)
-        if self.address_values["Needs sleep"]:
+        if injured or sick:
+            self.use_item("Medicine")
+        if sleepy:
             # Add logic to defer until close to bedtime
-            self.execute_inputs[Key.right, Key.right, Key.down, ("z",8), "z"]
-
-    def save_game(self, requirements):
+            self.execute_inputs([("a", 0.3), Key.right, Key.right, Key.down, ("z",8)])
+            
+    def save_game(self, requirements={}):
         self.task_name = "save_game"
         if self.check_requirements(requirements):
-            self.execute_inputs([])
-        else:
-            self.has_desynced = True
+            self.execute_inputs([(Key.left, 2), (Key.up,0.1), (Key.left, 0.5, 0.5)])
+            self.execute_inputs([("z",0.25), ("z",0.1), "z", Key.down, "z", "z"])
+            time.sleep(3)
 
     def boot_up_game(self):
         """ Begins at the top of the opening menu """
         self.task_name = "boot_up_game"
         self.destination_ID = 205
-        self.execute_inputs([(Key.down,0.01,0), "z", ("z",0.1,1.8), "z", ("z",0.1,4)])
+        self.execute_inputs([(Key.down,0.02,0), "z", ("z",0.1,1.8), "z", ("z",0.1,4)])
         self.update_game_state()
         self.initial_address_values = copy.deepcopy(self.address_values)
 
@@ -220,7 +227,7 @@ class Digimon_World(game_automation):
         self.task_name = "to_Birdamon"
         self.destination_ID = 207
         if From=="Jijimons house":
-            self.execute_inputs([ ((Key.down,Key.right), 4) ])
+            self.execute_inputs([ ((Key.down,Key.right), 4.2) ])
 
     def warp_to(self, location):
         self.task_name = "warp_to"
@@ -244,7 +251,7 @@ class Digimon_World(game_automation):
         self.task_name = "auto_pilot_home"
         self.destination_ID = 179
         self.use_item("Auto Pilot")
-        time.sleep(2)
+        time.sleep(1)
 
 
 

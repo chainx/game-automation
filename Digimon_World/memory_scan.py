@@ -3,9 +3,7 @@ from dw1_addresses import ADDRESSES
 
 WATCH_KEYS = {
     "Care mistakes": '"Condition"/"Care Mistakes"',
-    "Needs food": '"Condition Flag"/"Hungry"',
-    "Needs poop": '"Condition Flag"/"Poop"',
-    "Needs sleep": '"Condition Flag"/"Sleepy"',
+    "Condition flag": '"Condition Flag"/"Sleepy"',
     "Needs scolding": '"Partner Digimon"/"Internal Values"/"Reasonable Scold"',
     
     "Tiredness": '"Condition"/"Tiredness (0-100)"',
