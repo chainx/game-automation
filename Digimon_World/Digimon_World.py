@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
 from memory_scan import WATCH_KEYS, get_address_value, print_watch_values, attach_process
-from dw1_addresses import ADDRESSES
+from dw1_addresses import LOCATIONS, ADDRESSES
 
 DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
 
@@ -16,8 +16,9 @@ Evolution_requirements = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Evolut
 Food                   = pd.read_excel(DATA_FILENAME, sheet_name="Food")
 Digimon_raise          = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Raise")
 Item_spawns            = pd.read_excel(DATA_FILENAME, sheet_name="Item Spawns (NTSC-U)")
-Map_setup              = pd.read_excel(DATA_FILENAME, sheet_name="Map Setup")
-Arena_rewards          = pd.read_excel(DATA_FILENAME, sheet_name="Arena Rewards") 
+Arena_rewards          = pd.read_excel(DATA_FILENAME, sheet_name="Arena Rewards")
+
+
 
 def main():
     digimon_world = Digimon_World()
@@ -32,34 +33,102 @@ class Digimon_World(game_automation):
         super(Digimon_World, self).__init__()
         self.address_values = {key: None for key in WATCH_KEYS}
         self.process, self.psx_base = attach_process()
-        # self.initialize_game_state()
         self._closed = False
 
-    def main(self):
-        self.initialize_game_state()
+    def main(self, location_ID=0):
+        tasks = {
+            self.boot_up_game: 205,
+            self.exit_Jijimons_house: 179,
+            self.to_Birdamon: 207,
+            (self.warp_to, ("Misty Trees",)): 119
+        }
+        for task, destination_ID in tasks.items():
+            self.execute_task(task)
+            self.update_game_state()
+            if self.location_ID!=destination_ID:
+                self.wait_for_screen_transition(destination_ID, verbose=True)
+            else:
+                print("Task executed too late", self.location_ID)
+
         self.execute_script = False
-        # self.Mojyamon_arbitrage()
+
+    def execute_task(self, task):
+        if isinstance(task, tuple):
+            task, args = task[0], task[1]
+            if not isinstance(args, (list, tuple)):
+                args = (args,)
+            task(*args)
+        else:
+            task()
 
 # ==========================  GAME STATE READING   ===============================
 
-    def initialize_game_state(self):
-        # Run at the top of the opening menu
-        self.boot_up_game()
-        self.update_game_state()
-        self.print_game_state()
-        self.exit_Jijimons_house()
+    def wait_for_screen_transition(self, destination_ID, verbose=False):
+        # expected_location = LOCATIONS[destination_ID]
+        count = 0
+        while self.location_ID != destination_ID:
+            time.sleep(0.1)
+            self.update_game_state()
+            count+=1
+            if count == 100:
+                self.has_desynced = True
+                return
+        if verbose:
+            print(f"Time waited: {count*0.1:.1f} seconds")
+            print(f"Arrived at location ID = {self.location_ID}")
         
-    def update_game_state(self):
+    def update_game_state(self, print_game_state=False):
         for address_name in self.address_values:
             self.address_values[address_name] = get_address_value(
                 address_name,
                 process=self.process,
                 psx_base=self.psx_base,
             )
+        if print_game_state:
+            self.print_game_state()
+
+        self.location_ID = self.address_values["Current Screen ID"]
 
     def print_game_state(self):
         for address, address_value in self.address_values.items():
             print(address, address_value)
+
+# ==========================   INPUTS TO GAME   ===============================
+
+    def boot_up_game(self):
+        # Run at the top of the opening menu
+        self.execute_inputs([(Key.down,0.03,0), "z", ("z",0.1,1.8), "z", ("z",0.1,4)])
+
+    def exit_Jijimons_house(self):
+        self.execute_inputs([(Key.right, 3)])
+
+    def to_Birdamon(self, From="Jijimons house"):
+        if From=="Jijimons house":
+            self.execute_inputs([ ((Key.down,Key.right), 4) ])
+
+    def warp_to(self, location):
+        self.execute_inputs([ ((Key.up,Key.right), 1.3), ("z",0.7), ("z",0.5) ])
+        down_presses = {
+            "Great Canyon Top": 0,
+            "Gear Savana": 1,
+            "Ancient Dino Region": 2,
+            "Freezeland": 3,
+            "Misty Trees": 4,
+            "Beetle Land": 5,
+        }
+        for n in range(down_presses[location]):
+            self.execute_inputs([(Key.down,0.1)])
+        self.execute_inputs(["z", ("z",0.5), ("z",0.5), "z"])
+
+    def Mojyamon_arbitrage(self):
+        # Eventually should begin and end at Jijimon"s house
+        self.keys_to_hold = [Key.down, Key.right]
+        self.execute_inputs(["z"])
+
+    def Restock(self):
+        # Just press square on all the items we need
+        # Also restock devil chips if time between 6pm and 12pm
+        pass
 
 # ==========================   LIFECYCLE   ===================================
 
@@ -80,25 +149,6 @@ class Digimon_World(game_automation):
             self.close()
         except Exception:
             pass
-
-# ==========================   INPUTS TO GAME   ===============================
-
-    def boot_up_game(self):
-        # Run at the top of the opening menu
-        self.execute_inputs([Key.down, "z", ("z",0.1,1.8), "z", ("z",0.1,7)])
-
-    def exit_Jijimons_house(self):
-        self.execute_inputs([(Key.right, 2)])
-
-    def Mojyamon_arbitrage(self):
-        # Eventually should begin and end at Jijimon"s house
-        self.keys_to_hold = [Key.down, Key.right]
-        self.execute_inputs(["z"])
-
-    def Restock(self):
-        # Just press square on all the items we need
-        # Also restock devil chips if time between 6pm and 12pm
-        pass
 
 if __name__=="__main__":
     main()

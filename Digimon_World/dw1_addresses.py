@@ -1,3 +1,30 @@
+import pandas as pd
+
+DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
+
+Map_setup = pd.read_excel(DATA_FILENAME, sheet_name="Map Setup")
+
+LOCATIONS = (
+    Map_setup[["ID", "Name", "Description"]]
+    .assign(
+        ID=lambda df: pd.to_numeric(df["ID"], errors="coerce")
+    )
+    .dropna(subset=["ID"])
+    .assign(ID=lambda df: df["ID"].astype(int))
+    .assign(
+        Name=lambda df: df["Name"].fillna(""),
+        Description=lambda df: df["Description"].fillna(""),
+    )
+    .assign(
+        Location=lambda df: (
+            df["Name"].astype(str)
+            + df["Description"].astype(str).map(lambda d: f" / {d}" if d else "")
+        ).str.strip()
+    )
+    .set_index("Location")["ID"]
+    .to_dict()
+)
+
 # Auto-generated from Cheat Engine table: DW1_NTSC.CT
 #
 # keys are "group/subgroup/description" paths to avoid collisions.
