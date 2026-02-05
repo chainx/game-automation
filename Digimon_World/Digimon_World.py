@@ -1,6 +1,7 @@
 import pandas as pd
 import time
 import copy
+import shutil
 from pathlib import Path
 from pynput.keyboard import Key
 
@@ -12,11 +13,12 @@ from memory_scan import WATCH_KEYS, get_address_value, print_watch_values, attac
 from dw1_addresses import ITEMS, ADDRESSES
 
 DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
+MEMORY_CARD_LOCATION = Path("D:/Gaming/Emulators/PS1/cards/epsxe000.mcr")
 
-Evolution_requirements = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Evolution")
-Food                   = pd.read_excel(DATA_FILENAME, sheet_name="Food")
-Digimon_raise          = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Raise")
-Arena_rewards          = pd.read_excel(DATA_FILENAME, sheet_name="Arena Rewards")
+Evo_requirements = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Evolution")
+Food             = pd.read_excel(DATA_FILENAME, sheet_name="Food")
+Digimon_raise    = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Raise")
+Arena_rewards    = pd.read_excel(DATA_FILENAME, sheet_name="Arena Rewards")
 
 def main():
     digimon_world = Digimon_World()
@@ -31,13 +33,13 @@ class Digimon_World(game_automation):
         self._closed = False
         print("Ready to run!")
 
-        self.destination_ID = None
+        self.destination_ID = None # Used to check if a desync occured during a task
 
     def main(self):
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
         # self.practice_task(self.save_game, task_location=205)
-        self.practice_task(self.care_taking)
-        # self.digipine_farming()
+        # self.practice_task(self.care_taking, end_executiion=False)
+        self.digipine_farming()
 
 # ==========================   TASK PIPELINES   ===============================
 
@@ -81,13 +83,14 @@ class Digimon_World(game_automation):
         else:
             task()
 
-    def practice_task(self, task, task_location=None):
+    def practice_task(self, task, task_location=None, end_executiion=True):
         if task_location:
             self.location_ID = 0
-            self.wait_for_screen_transition(task_location, verbose=True)
+            self.wait_for_screen_transition(task_location, wait_indefinitely=True, verbose=True)
         self.execute_task(task)
         self.waiting(verbose=True)
-        self.execute_script = False
+        if end_executiion:
+            self.execute_script = False
 
     def waiting(self, verbose=False):
         if self.destination_ID:
@@ -99,13 +102,13 @@ class Digimon_World(game_automation):
                 print("Task executed too late", self.location_ID)
             self.destination_ID = None
 
-    def wait_for_screen_transition(self, destination_ID, verbose=False):
+    def wait_for_screen_transition(self, destination_ID, wait_indefinitely=False, verbose=False):
         count = 0
         while self.location_ID != destination_ID:
             time.sleep(0.1)
             self.update_game_state()
             count+=1
-            if count == 25: # Wait at most 2.5 seconds
+            if count == 25 and not wait_indefinitely: # Wait at most 2.5 seconds
                 print("Didn't reach screen transition")
                 self.has_desynced = True
                 return
@@ -127,7 +130,9 @@ class Digimon_World(game_automation):
 
         self.location_ID = self.address_values["Current Screen ID"]
         self.rng = self.address_values["RNG"]
-        self.hour = self.address_values["Hour"]
+        self.year, self.day, self.hour, self.minute = [
+            self.address_values[address] for address in ("Year", "Day", "Hour", "Minute")
+        ]
         self.update_inventory()
 
     def update_inventory(self):
@@ -204,6 +209,11 @@ class Digimon_World(game_automation):
             self.execute_inputs([(Key.left, 2), (Key.up,0.1), (Key.left, 0.5, 0.5)])
             self.execute_inputs([("z",0.25), ("z",0.1), "z", Key.down, "z", "z"])
             time.sleep(3)
+
+            debug_dir = MEMORY_CARD_LOCATION.parent / "Debug"
+            debug_dir.mkdir(exist_ok=True)
+            filename = f"{self.year}_{self.day}_{self.hour}_{self.minute}.mcr"
+            shutil.copyfile(MEMORY_CARD_LOCATION, debug_dir / filename)
 
     def boot_up_game(self):
         """ Begins at the top of the opening menu """
