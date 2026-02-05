@@ -12,6 +12,7 @@ WATCH_KEYS = {
     "Weight": '"Condition"/"Weight"',
     "Lifespan": '"Condition"/"Remaining Lifetime (Hours)"',
     "Age since Digivolution": '"Condition"/"Age in hours (for evolve)"',
+    "Bedtime": '"Condition"/"Sleep"/"Wakeup Hour"',
 
     "Hungry": '"Condition"/"Hungry Timer"',
     "Pooping": '"Condition"/"Pooping Timer"',

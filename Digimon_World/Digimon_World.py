@@ -36,8 +36,8 @@ class Digimon_World(game_automation):
     def main(self):
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
         # self.practice_task(self.save_game, task_location=205)
-        # self.practice_task(self.care_taking)
-        self.digipine_farming()
+        self.practice_task(self.care_taking)
+        # self.digipine_farming()
 
 # ==========================   TASK PIPELINES   ===============================
 
@@ -127,6 +127,7 @@ class Digimon_World(game_automation):
 
         self.location_ID = self.address_values["Current Screen ID"]
         self.rng = self.address_values["RNG"]
+        self.hour = self.address_values["Hour"]
         self.update_inventory()
 
     def update_inventory(self):
@@ -186,17 +187,16 @@ class Digimon_World(game_automation):
         self.task_name = "care_taking"
         self.update_game_state()
 
-        condition_flag = self.address_values["Condition flag"]
-        sleepy, tired, hungry, poop, unhappy, injured, sick, _ = map(int, format(condition_flag, "08b")[::-1])
+        flags = tuple(map(int, format(self.address_values["Condition flag"], "08b")[::-1]))
+        sleepy, tired, hungry, poop, unhappy, injured, sick, _ = flags
         if poop:
             self.use_item("Port. potty")
         if hungry:
             self.use_item(food_preference)
         if injured or sick:
             self.use_item("Medicine")
-        if sleepy:
-            # Add logic to defer until close to bedtime
-            self.execute_inputs([("a", 0.3), Key.right, Key.right, Key.down, ("z",8)])
+        if sleepy and self.address_values["Bedtime"]-self.hour < 4:
+            self.execute_inputs([("a", 0.3), Key.right, Key.right, Key.down, ("z",8), ("z",1)])
             
     def save_game(self, requirements={}):
         self.task_name = "save_game"
