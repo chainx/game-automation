@@ -26,8 +26,8 @@ class Digimon_World(game_automation):
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
         # self.practice_task(self.save_game, task_location=205)
         # self.practice_task(self.care_taking, end_executiion=False)
-        self.practice_task(self.auto_pilot_home)
-        # self.digipine_farming()
+        # self.practice_task(self.auto_pilot_home)
+        self.digipine_farming()
 
     def __init__(self):
         super(Digimon_World, self).__init__()
@@ -61,6 +61,8 @@ class Digimon_World(game_automation):
         ]
         self.execute_task_list(tasks)
         self.execute_inputs([self.reload_key])
+        if self.inventory["Digipine"]["Amount"]==99:
+            self.execute_script = False
 
 # ==========================   TASK EXECUTION   ===============================
 
@@ -131,6 +133,8 @@ class Digimon_World(game_automation):
         self.year, self.day, self.hour, self.minute = [
             self.address_values[address] for address in ("Year", "Day", "Hour", "Minute")
         ]
+        flags = tuple(map(int, format(self.address_values["Condition flag"], "08b")[::-1]))
+        self.sleepy, self.tired, self.hungry, self.poopy, self.unhappy, self.injured, self.sick, _ = flags
         self.update_inventory()
 
     def update_inventory(self):
@@ -195,17 +199,24 @@ class Digimon_World(game_automation):
         self.task_name = "care_taking"
         self.update_game_state()
 
-        flags = tuple(map(int, format(self.address_values["Condition flag"], "08b")[::-1]))
-        sleepy, tired, hungry, poop, unhappy, injured, sick, _ = flags
-        if poop:
+        if self.poopy:
             self.use_item("Port. potty")
-        if hungry:
-            self.use_item(food_preference)
-        if injured or sick:
+        if self.hungry:
+            self.feeding(food_preference)
+        if self.injured or self.sick:
             self.use_item("Medicine")
-        if sleepy and self.address_values["Bedtime"]-self.hour < 4:
-            self.execute_inputs([("a", 0.3), Key.right, Key.right, Key.down, ("z",8), ("z",1)])
-            
+        if self.sleepy and self.address_values["Bedtime"]-self.hour < 4:
+            self.execute_inputs([("a", 0.3), Key.right, Key.right, Key.down, ("z",7.2), ("z",2.5)])
+    
+    def feeding(self, food_preference="Sirloin"):
+        if self.address_values["Lifespan"] < 20:
+            food_preference = "Chain melon"
+        self.use_item(food_preference)
+        self.update_game_state()
+        if self.sick: # Cancel sickness textbox
+             self.execute_inputs([("z",0.1)])
+
+
     def save_game(self, requirements={}):
         self.task_name = "save_game"
         if self.check_requirements(requirements):
@@ -268,15 +279,18 @@ class Digimon_World(game_automation):
 
 
 
-    def misty_trees_rng_manip_part1(self, testing=False):
+    def misty_trees_rng_manip_part1(self):
         self.task_name = "misty_trees_rng_manip_part1"
         self.destination_ID = 121
         
         time.sleep(2.7)
+        self.execute_inputs([(Key.right,0.4)])
         for n in range(10):
-            self.execute_inputs([(Key.right,0.35), (Key.left,0.2)])
+            # self.execute_inputs([(Key.right,0.35), (Key.left,0.2)]) # For fast digimon
+            self.execute_inputs([(Key.right,0.6), (Key.left,0.45)])   # For slow digimon
             self.update_game_state()
             if self.rng == 228325532: break
+            # elif self.rng == 979431494: self.has_desynced = True
         if self.rng != 228325532:
             print("RNG value wrong")
             self.has_desynced = True
