@@ -1,11 +1,7 @@
-import pandas as pd
-import time
-import copy
-import shutil
+import pandas as pd, time, copy, shutil, sys, os
 from pathlib import Path
 from pynput.keyboard import Key
 
-import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
@@ -25,6 +21,14 @@ def main():
     digimon_world.run_script()
 
 class Digimon_World(game_automation):
+
+    def main(self):
+        # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
+        # self.practice_task(self.save_game, task_location=205)
+        # self.practice_task(self.care_taking, end_executiion=False)
+        self.practice_task(self.auto_pilot_home)
+        # self.digipine_farming()
+
     def __init__(self):
         super(Digimon_World, self).__init__()
         self.reload_key = Key.f1
@@ -34,12 +38,6 @@ class Digimon_World(game_automation):
         print("Ready to run!")
 
         self.destination_ID = None # Used to check if a desync occured during a task
-
-    def main(self):
-        # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
-        # self.practice_task(self.save_game, task_location=205)
-        # self.practice_task(self.care_taking, end_executiion=False)
-        self.digipine_farming()
 
 # ==========================   TASK PIPELINES   ===============================
 
@@ -178,6 +176,7 @@ class Digimon_World(game_automation):
             print(f"Desync due to {item_name} not being in the inventory")
             self.has_desynced = True
             return
+        
         item_location = self.inventory[item_name]["Location"]
         self.execute_inputs([("a", 0.3), ("z", 0.9)])
         if item_location % 2 == 1:
@@ -186,7 +185,11 @@ class Digimon_World(game_automation):
             self.execute_inputs([Key.down])
         self.execute_inputs([("z", 0.25), "z"])
         time.sleep(4)
-        # Include logic to handle scolding
+        
+        self.update_game_state()
+        if self.address_values["Needs scolding"]:
+            self.execute_inputs([("a", 0.3), Key.right, Key.down, ("z",2)])
+            self.use_item(item_name)
 
     def care_taking(self, food_preference="Sirloin"):
         self.task_name = "care_taking"
