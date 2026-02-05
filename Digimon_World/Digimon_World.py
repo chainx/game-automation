@@ -23,11 +23,14 @@ def main():
 class Digimon_World(game_automation):
 
     def main(self):
+        self.money_farming()
+        # self.digipine_farming()
+
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
         # self.practice_task(self.save_game, task_location=205)
         # self.practice_task(self.care_taking, end_executiion=False)
+        # self.practice_task(self.sell_goodies, task_location=216, end_executiion=False)
         # self.practice_task(self.auto_pilot_home)
-        self.digipine_farming()
 
     def __init__(self):
         super(Digimon_World, self).__init__()
@@ -41,27 +44,63 @@ class Digimon_World(game_automation):
 
 # ==========================   TASK PIPELINES   ===============================
 
-    def digipine_farming(self):
-        requirements = {
-            "Care mistakes": "same",
-            "Item/Digipine": "plus 1",
-        }
+    def from_boot_up_to_warp(self, destination):
         tasks = [
             self.boot_up_game,
             self.exit_Jijimons_house,
             self.to_Birdamon,
-            (self.warp_to, "Misty Trees"),
-            self.misty_trees_rng_manip_part1,
-            self.misty_trees_rng_manip_part2,
-            self.misty_trees_rng_manip_part3,
+            (self.warp_to, destination)
+        ]
+        return tasks
+
+    def warp_home_and_save(self, requirements):
+        tasks = [
             self.care_taking,
             self.auto_pilot_home,
             self.to_Jijimons_house,
             (self.save_game, requirements),
         ]
+        return tasks
+
+    def digipine_farming(self):
+        requirements = {
+            "Care mistakes": "same",
+            "Item/Digipine": "increased",
+        }
+        tasks = self.from_boot_up_to_warp("Misty Trees")
+        tasks += [
+            self.misty_trees_rng_manip_part1,
+            self.misty_trees_rng_manip_part2,
+            self.misty_trees_rng_manip_part3,
+        ]
+        tasks += self.warp_home_and_save(requirements)
         self.execute_task_list(tasks)
         self.execute_inputs([self.reload_key])
         if self.inventory["Digipine"]["Amount"]==99:
+            self.execute_script = False
+
+    def money_farming(self):
+        requirements = {
+            "Care mistakes": "same",
+            "Bits": "increased"
+        }
+        tasks = self.from_boot_up_to_warp("Freezeland")
+        tasks += [
+            self.to_Mojyamon_part1,
+            self.to_Mojyamon_part2,
+            self.to_Mojyamon_part3,
+            self.to_Mojyamon_part4,
+            self.Mojyamon_arbitrage,
+            self.auto_pilot_home,
+            self.enter_shop_part1,
+            self.enter_shop_part2,
+            self.sell_goodies,
+        ]
+        tasks += self.warp_home_and_save(requirements)
+        self.execute_task_list(tasks)
+        self.execute_inputs([self.reload_key])
+        print(f"Total bits after {self.count+1} runs: {self.bits}")
+        if self.bits==999999:
             self.execute_script = False
 
 # ==========================   TASK EXECUTION   ===============================
@@ -96,7 +135,7 @@ class Digimon_World(game_automation):
         if self.destination_ID:
             self.update_game_state()
             if self.location_ID!=self.destination_ID:
-                self.wait_for_screen_transition(self.destination_ID, verbose)
+                self.wait_for_screen_transition(self.destination_ID, verbose=verbose)
                 if self.has_desynced: return
             else:
                 print("Task executed too late", self.location_ID)
@@ -130,6 +169,7 @@ class Digimon_World(game_automation):
 
         self.location_ID = self.address_values["Current Screen ID"]
         self.rng = self.address_values["RNG"]
+        self.bits = self.address_values["Bits"]
         self.year, self.day, self.hour, self.minute = [
             self.address_values[address] for address in ("Year", "Day", "Hour", "Minute")
         ]
@@ -157,8 +197,8 @@ class Digimon_World(game_automation):
                 address = f"Slot{location}/Amount"
             if requirement_type == "same":
                 proceed = proceed and (self.address_values[address] == self.initial_address_values[address])
-            if requirement_type == "plus 1":
-                proceed = proceed and (self.address_values[address] == self.initial_address_values[address] + 1)
+            if requirement_type == "increased":
+                proceed = proceed and (self.address_values[address] > self.initial_address_values[address])
             if not proceed:
                 print(f"Requirement not met: {address}, {requirement_type}")
                 print(self.address_values[address], self.initial_address_values[address])
@@ -277,6 +317,24 @@ class Digimon_World(game_automation):
         self.use_item("Auto Pilot")
         time.sleep(1)
 
+    def sell_goodies(self):
+        self.task_name = "sell_goodies"
+        self.execute_inputs([ (Key.up, 2.5), ((Key.up, Key.left),.3) ])
+        self.execute_inputs([ ("z",.5), ("z",.5), ("z",.8), Key.down, ("z",.3), "x", ("z",.3), ("z",.5) ])
+        n = self.inventory["S.Def.disk"]["Location"]
+        self.execute_inputs( [Key.down, ("z",.8)] + [Key.down]*n + [("z",.3), "x", ("z",.3), ("z",.5)] )
+        self.execute_inputs([ ("a",.5), ("z",.2) ])        
+
+    def enter_shop_part1(self):
+        self.task_name = "enter_shop_part1"
+        self.destination_ID = 192
+        self.execute_inputs([ (Key.down, 3) ])
+
+    def enter_shop_part2(self):
+        self.task_name = "enter_shop_part2"
+        self.destination_ID = 216
+        self.execute_inputs([ (Key.down, 4.75), (Key.left, 1.5), (Key.up, 0.5) ])
+
 
 
     def misty_trees_rng_manip_part1(self):
@@ -308,15 +366,31 @@ class Digimon_World(game_automation):
 
 
 
+    def to_Mojyamon_part1(self):
+        self.task_name = "to_Mojyamon_part1"
+        self.destination_ID = 96
+        self.execute_inputs([ ((Key.down,Key.right), 6) ])
+
+    def to_Mojyamon_part2(self):
+        self.task_name = "to_Mojyamon_part2"
+        self.destination_ID = 132
+        self.execute_inputs([ (Key.down, 6), ((Key.down,Key.right), 1.5),  (Key.down, 2.5)])
+
+    def to_Mojyamon_part3(self):
+        self.task_name = "to_Mojyamon_part3"
+        self.destination_ID = 133
+        self.execute_inputs([ ((Key.down,Key.left), 3),  (Key.down, 6)])
+
+    def to_Mojyamon_part4(self):
+        self.task_name = "to_Mojyamon_part4"
+        self.execute_inputs([ ((Key.down,Key.left), 2.5),  (Key.down, 1.7) ])
+        self.execute_inputs([ ((Key.down,Key.right), 1.5),  (Key.right, 1), ((Key.up,Key.right), 1) ])
+
     def Mojyamon_arbitrage(self):
         self.task_name = "Mojyamon_arbitrage"
-        self.keys_to_hold = [Key.down, Key.right]
-        self.execute_inputs(["z"])
-
-    def restock(self):
-        # Just press square on all the items we need
-        # Also restock devil chips if time between 6pm and 12pm
-        self.task_name = "restock"
+        while "med.recovery" in self.inventory:
+            self.execute_inputs([ ("z", 0.5), "z", ("z", 0.8), Key.down, "z", ("z", 0.5), ("z", 0.5), "z" ])
+            self.update_game_state()
 
 # ==========================   LIFECYCLE   ===================================
 
