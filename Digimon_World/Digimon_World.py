@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
 from memory_scan import WATCH_KEYS, get_address_value, print_watch_values, attach_process
-from dw1_addresses import ITEMS, ADDRESSES
+from dw1_addresses import ITEMS, ADDRESSES, LOCATIONS
 
 DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
 MEMORY_CARD_LOCATION = Path("D:/Gaming/Emulators/PS1/cards/epsxe000.mcr")
@@ -26,11 +26,13 @@ class Digimon_World(game_automation):
         self.money_farming()
         # self.digipine_farming()
 
+        # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"}, from_shop=True))
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
         # self.practice_task(self.save_game, task_location=205)
         # self.practice_task(self.care_taking, end_executiion=False)
         # self.practice_task(self.sell_goodies, task_location=216, end_executiion=False)
-        # self.practice_task(self.auto_pilot_home)
+        # self.practice_task(self.auto_pilot_home, end_executiion=False)
+        # self.practice_task((self.to_Jijimons_house, {"from_shop":True}))
 
     def __init__(self):
         super(Digimon_World, self).__init__()
@@ -40,6 +42,7 @@ class Digimon_World(game_automation):
         self._closed = False
         print("Ready to run!")
 
+        self.verbose = True
         self.destination_ID = None # Used to check if a desync occured during a task
 
 # ==========================   TASK PIPELINES   ===============================
@@ -53,12 +56,12 @@ class Digimon_World(game_automation):
         ]
         return tasks
 
-    def warp_home_and_save(self, requirements):
+    def warp_home_and_save(self, requirements=None, from_shop=False):
         tasks = [
             self.care_taking,
             self.auto_pilot_home,
-            self.to_Jijimons_house,
-            (self.save_game, requirements),
+            (self.to_Jijimons_house, {"from_shop": from_shop}),
+            (self.save_game, [requirements]),
         ]
         return tasks
 
@@ -96,7 +99,7 @@ class Digimon_World(game_automation):
             self.enter_shop_part2,
             self.sell_goodies,
         ]
-        tasks += self.warp_home_and_save(requirements)
+        tasks += self.warp_home_and_save(requirements, from_shop=True)
         self.execute_task_list(tasks)
         self.execute_inputs([self.reload_key])
         print(f"Total bits after {self.count+1} runs: {self.bits}")
@@ -105,55 +108,62 @@ class Digimon_World(game_automation):
 
 # ==========================   TASK EXECUTION   ===============================
 
-    def execute_task_list(self, tasks, verbose=False):
+    def execute_task_list(self, tasks):
         for task in tasks:
             self.execute_task(task)
             if self.has_desynced:
                 print(f"Desynced on task: {self.task_name}")
                 return
-            self.waiting(verbose)
+            self.waiting()
 
     def execute_task(self, task):
         if isinstance(task, tuple):
             task, args = task[0], task[1]
-            if not isinstance(args, (list, tuple)):
-                args = (args,)
-            task(*args)
+            if isinstance(args, dict):
+                print(args)
+                task(**args)
+            else:
+                print(args)
+                args = (args,) if not isinstance(args, (list, tuple)) else args
+                task(*args)
         else:
             task()
 
-    def practice_task(self, task, task_location=None, end_executiion=True):
-        if task_location:
-            self.location_ID = 0
-            self.wait_for_screen_transition(task_location, wait_indefinitely=True, verbose=True)
-        self.execute_task(task)
-        self.waiting(verbose=True)
-        if end_executiion:
-            self.execute_script = False
-
-    def waiting(self, verbose=False):
+    def waiting(self):
         if self.destination_ID:
             self.update_game_state()
             if self.location_ID!=self.destination_ID:
-                self.wait_for_screen_transition(self.destination_ID, verbose=verbose)
-                if self.has_desynced: return
+                self.wait_for_screen_transition(self.destination_ID)
             else:
-                print("Task executed too late", self.location_ID)
+                print(f"{self.task_name} executed too late", self.location_ID)
+                self.has_desynced = True
+            if self.has_desynced: 
+                return
             self.destination_ID = None
 
-    def wait_for_screen_transition(self, destination_ID, wait_indefinitely=False, verbose=False):
+    def wait_for_screen_transition(self, destination_ID, wait_indefinitely=False):
         count = 0
         while self.location_ID != destination_ID:
-            time.sleep(0.1)
+            time.sleep(0.1) # Check for update every 0.1 seconds
             self.update_game_state()
             count+=1
             if count == 25 and not wait_indefinitely: # Wait at most 2.5 seconds
                 print("Didn't reach screen transition")
                 self.has_desynced = True
                 return
-        if verbose:
+        if self.verbose:
             print(f"Time waited: {count*0.1:.1f} seconds")
-            print(f"Arrived at location ID = {self.location_ID}")
+            print(f"Arrived at location ID = {self.location_ID} ({self.location_name})")
+
+    def practice_task(self, task, task_location=None, end_executiion=True):
+        self.verbose = True
+        if task_location:
+            self.location_ID = 0
+            self.wait_for_screen_transition(task_location, wait_indefinitely=True)
+        self.execute_task(task)
+        self.waiting()
+        if end_executiion:
+            self.execute_script = False
 
 # ==========================   GAME STATE READING   ===============================
         
@@ -168,6 +178,7 @@ class Digimon_World(game_automation):
             self.print_game_state()
 
         self.location_ID = self.address_values["Current Screen ID"]
+        self.location_name = LOCATIONS[self.location_ID]
         self.rng = self.address_values["RNG"]
         self.bits = self.address_values["Bits"]
         self.year, self.day, self.hour, self.minute = [
@@ -238,6 +249,7 @@ class Digimon_World(game_automation):
     def care_taking(self, food_preference="Sirloin"):
         self.task_name = "care_taking"
         self.update_game_state()
+        if self.verbose: print("Starting care taking")
 
         if self.poopy:
             self.use_item("Port. potty")
@@ -246,7 +258,7 @@ class Digimon_World(game_automation):
         if self.injured or self.sick:
             self.use_item("Medicine")
         if self.sleepy and self.address_values["Bedtime"]-self.hour < 4:
-            self.execute_inputs([("a", 0.3), Key.right, Key.right, Key.down, ("z",7.2), ("z",2.5)])
+            self.execute_inputs([("a", 0.3), Key.left, ("z",7.2), ("z",2.5)])
     
     def feeding(self, food_preference="Sirloin"):
         if self.address_values["Lifespan"] < 20:
@@ -282,10 +294,13 @@ class Digimon_World(game_automation):
         self.destination_ID = 179
         self.execute_inputs([(Key.right, 3)])
 
-    def to_Jijimons_house(self):
+    def to_Jijimons_house(self, from_shop=False):
         self.task_name = "to_Jijimons_house"
         self.destination_ID = 205
-        self.execute_inputs([ ((Key.up,Key.left), 2.7), (Key.up,3.5) ])
+        if from_shop:
+            self.execute_inputs([ (Key.up,5),  ((Key.up,Key.left),1) ])
+        else:
+            self.execute_inputs([ (Key.up,6),  ((Key.up,Key.left),1) ])
 
     def to_Birdamon(self, From="Jijimons house"):
         self.task_name = "to_Birdamon"

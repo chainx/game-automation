@@ -33,7 +33,7 @@ LOCATIONS = (
             + df["Description"].astype(str).map(lambda d: f" / {d}" if d else "")
         ).str.strip()
     )
-    .set_index("Location")["ID"]
+    .set_index("ID")["Location"]
     .to_dict()
 )
 
