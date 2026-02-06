@@ -23,8 +23,10 @@ def main():
 class Digimon_World(game_automation):
 
     def main(self):
-        self.money_farming()
+        self.ice_shroom_farming()
+        # self.chain_melon_farming()
         # self.digipine_farming()
+        # self.money_farming()
 
         # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"}, from_shop=True))
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
@@ -32,8 +34,8 @@ class Digimon_World(game_automation):
         # self.practice_task(self.care_taking, end_executiion=False)
         # self.practice_task(self.sell_goodies, task_location=216, end_executiion=False)
         # self.practice_task(self.auto_pilot_home, end_executiion=False)
-        # self.practice_task((self.to_Jijimons_house, {"from_shop":True}))
-
+        # self.practice_task((self.to_Jijimons_house, {"from_shop":False}))
+                
     def __init__(self):
         super(Digimon_World, self).__init__()
         self.reload_key = Key.f1
@@ -42,28 +44,33 @@ class Digimon_World(game_automation):
         self._closed = False
         print("Ready to run!")
 
-        self.verbose = True
+        self.verbose = False
+        self.initial_address_values = {}
         self.destination_ID = None # Used to check if a desync occured during a task
 
 # ==========================   TASK PIPELINES   ===============================
 
-    def from_boot_up_to_warp(self, destination):
-        tasks = [
-            self.boot_up_game,
-            self.exit_Jijimons_house,
-            self.to_Birdamon,
-            (self.warp_to, destination)
+    def chain_melon_farming(self):
+        requirements = {
+            "Care mistakes": "same",
+            "Item/Chain melon": "increased",
+        }
+        tasks = self.from_boot_up_to_warp("Gear Savanna")
+        tasks += [
+            self.gear_savanna_rng_manip_part1,
+            self.gear_savanna_rng_manip_part2,
+            self.gear_savanna_rng_manip_part3,
+            self.gear_savanna_rng_manip_part4,
+            self.gear_savanna_rng_manip_part5,
         ]
-        return tasks
-
-    def warp_home_and_save(self, requirements=None, from_shop=False):
-        tasks = [
-            self.care_taking,
-            self.auto_pilot_home,
-            (self.to_Jijimons_house, {"from_shop": from_shop}),
-            (self.save_game, [requirements]),
-        ]
-        return tasks
+        tasks += self.warp_home_and_save(requirements)
+        self.execute_task_list(tasks)
+        self.execute_inputs([self.reload_key])
+        
+        chain_melons_total = self.inventory["Chain melon"]["Amount"]
+        print(f"Total chain melons after {self.count+1} runs: {chain_melons_total}")
+        if chain_melons_total==99:
+            self.execute_script = False
 
     def digipine_farming(self):
         requirements = {
@@ -79,7 +86,26 @@ class Digimon_World(game_automation):
         tasks += self.warp_home_and_save(requirements)
         self.execute_task_list(tasks)
         self.execute_inputs([self.reload_key])
-        if self.inventory["Digipine"]["Amount"]==99:
+
+        digipines_total = self.inventory["Digipine"]["Amount"]
+        print(f"Total digipines after {self.count+1} runs: {digipines_total}")
+        if digipines_total==99:
+            self.execute_script = False
+
+    def ice_shroom_farming(self):
+        requirements = {
+            "Care mistakes": "same",
+            "Item/Ice mushrm": "increased",
+        }
+        tasks = self.from_boot_up_to_warp("Freezeland")
+        tasks += [self.pick_up_ice_shroom]
+        tasks += self.warp_home_and_save(requirements)
+        self.execute_task_list(tasks)
+        self.execute_inputs([self.reload_key])
+
+        ice_shrooms_total = self.inventory["Ice mushrm"]["Amount"]
+        print(f"Total ice shrooms after {self.count+1} runs: {ice_shrooms_total}")
+        if ice_shrooms_total==99:
             self.execute_script = False
 
     def money_farming(self):
@@ -106,6 +132,24 @@ class Digimon_World(game_automation):
         if self.bits==999999:
             self.execute_script = False
 
+    def from_boot_up_to_warp(self, destination):
+        tasks = [
+            self.boot_up_game,
+            self.exit_Jijimons_house,
+            self.to_Birdamon,
+            (self.warp_to, destination)
+        ]
+        return tasks
+
+    def warp_home_and_save(self, requirements=None, from_shop=False):
+        tasks = [
+            self.care_taking,
+            self.auto_pilot_home,
+            (self.to_Jijimons_house, {"from_shop": from_shop}),
+            (self.save_game, [requirements]),
+        ]
+        return tasks
+
 # ==========================   TASK EXECUTION   ===============================
 
     def execute_task_list(self, tasks):
@@ -120,10 +164,8 @@ class Digimon_World(game_automation):
         if isinstance(task, tuple):
             task, args = task[0], task[1]
             if isinstance(args, dict):
-                print(args)
                 task(**args)
             else:
-                print(args)
                 args = (args,) if not isinstance(args, (list, tuple)) else args
                 task(*args)
         else:
@@ -222,7 +264,7 @@ class Digimon_World(game_automation):
         for item_name, item_info in self.inventory.items():
             print(item_name, item_info)
 
-# ==========================   TASK INPUTS   ===============================
+# ==========================   TASK INPUTS (TOWN)   ===============================
 
     def use_item(self, item_name):
         """ Begins at the top left of the menu """
@@ -268,7 +310,6 @@ class Digimon_World(game_automation):
         if self.sick: # Cancel sickness textbox
              self.execute_inputs([("z",0.1)])
 
-
     def save_game(self, requirements={}):
         self.task_name = "save_game"
         if self.check_requirements(requirements):
@@ -312,7 +353,7 @@ class Digimon_World(game_automation):
         self.task_name = "warp_to"
         location_info = {
             "Great Canyon Top":    [0, 38],
-            "Gear Savana":         [1, 70],
+            "Gear Savanna":         [1, 70],
             "Ancient Dino Region": [2, 79],
             "Freezeland":          [3, 93],
             "Misty Trees":         [4, 119],
@@ -350,7 +391,39 @@ class Digimon_World(game_automation):
         self.destination_ID = 216
         self.execute_inputs([ (Key.down, 4.75), (Key.left, 1.5), (Key.up, 0.5) ])
 
+# ==========================   TASK INPUTS (OUT OF TOWN)   ===============================
 
+    def gear_savanna_rng_manip_part1(self):
+        self.task_name = "gear_savanna_rng_manip_part1"
+        self.destination_ID = 69
+        self.execute_inputs([ ((Key.down,Key.left),4,1.5) ])
+        self.update_game_state()
+        if self.rng == 3852399341:
+            self.execute_inputs([ (Key.down,2) ])
+        elif self.rng == 1618087172:
+            self.execute_inputs([ (Key.down,1,1.3), (Key.down,1) ])
+        else:
+            print(f"RNG desync in gear savanna: {self.rng}")
+            self.has_desynced = True
+
+    def gear_savanna_rng_manip_part2(self):
+        self.task_name = "gear_savanna_rng_manip_part2"
+        self.destination_ID = 70
+        self.execute_inputs([ (Key.up,3) ])
+
+    def gear_savanna_rng_manip_part3(self):
+        self.task_name = "gear_savanna_rng_manip_part3"
+        self.destination_ID = 69
+        self.execute_inputs([ (Key.down,3) ])
+
+    def gear_savanna_rng_manip_part4(self):
+        self.task_name = "gear_savanna_rng_manip_part4"
+        self.destination_ID = 74
+        self.execute_inputs([ (Key.down,7), ((Key.down,Key.right),3), (Key.right,2) ])
+
+    def gear_savanna_rng_manip_part5(self):
+        self.task_name = "gear_savanna_rng_manip_part5"
+        self.execute_inputs([ ((Key.down,Key.right),3.5), (Key.right,.6), ((Key.down,Key.right),2), ("z",1) ])
 
     def misty_trees_rng_manip_part1(self):
         self.task_name = "misty_trees_rng_manip_part1"
@@ -379,7 +452,10 @@ class Digimon_World(game_automation):
         self.task_name = "misty_trees_rng_manip_part3"
         self.execute_inputs([ ((Key.down, Key.left),6), (Key.left,2), ("z", 1.5)])
 
-
+    def pick_up_ice_shroom(self):
+        self.task_name = "pick_up_ice_shroom"
+        inputs = [ ((Key.down, Key.right),5.2), (Key.down,1.8), ((Key.down, Key.left),1), ("z",.5) ]
+        self.execute_inputs(inputs)
 
     def to_Mojyamon_part1(self):
         self.task_name = "to_Mojyamon_part1"
