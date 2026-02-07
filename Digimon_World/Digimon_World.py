@@ -23,10 +23,22 @@ def main():
 class Digimon_World(game_automation):
 
     def main(self):
-        self.ice_shroom_farming()
-        # self.chain_melon_farming()
-        # self.digipine_farming()
-        # self.money_farming()
+        if not hasattr(self, "inventory"):
+            # Initialise address values
+            self.execute_task_list(self.boot_up_and_leave_house())
+        else:
+            if (self.hour<7 or self.hour>18) and self.ice_shrooms < 99:
+                self.ice_shroom_farming()
+            elif self.chain_melons < 99:
+                self.chain_melon_farming()
+            elif self.digipines < 99:
+                self.digipine_farming()
+            elif self.bits < 999999:
+                self.money_farming()
+            else:
+                self.execute_script = False
+
+        self.execute_inputs([self.reload_key])
 
         # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"}, from_shop=True))
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
@@ -65,12 +77,8 @@ class Digimon_World(game_automation):
         ]
         tasks += self.warp_home_and_save(requirements)
         self.execute_task_list(tasks)
-        self.execute_inputs([self.reload_key])
         
-        chain_melons_total = self.inventory["Chain melon"]["Amount"]
-        print(f"Total chain melons after {self.count+1} runs: {chain_melons_total}")
-        if chain_melons_total==99:
-            self.execute_script = False
+        print(f"Total chain melons after {self.count+1} runs: {self.chain_melons}")
 
     def digipine_farming(self):
         requirements = {
@@ -85,12 +93,8 @@ class Digimon_World(game_automation):
         ]
         tasks += self.warp_home_and_save(requirements)
         self.execute_task_list(tasks)
-        self.execute_inputs([self.reload_key])
 
-        digipines_total = self.inventory["Digipine"]["Amount"]
-        print(f"Total digipines after {self.count+1} runs: {digipines_total}")
-        if digipines_total==99:
-            self.execute_script = False
+        print(f"Total digipines after {self.count+1} runs: {self.digipines}")
 
     def ice_shroom_farming(self):
         requirements = {
@@ -101,12 +105,8 @@ class Digimon_World(game_automation):
         tasks += [self.pick_up_ice_shroom]
         tasks += self.warp_home_and_save(requirements)
         self.execute_task_list(tasks)
-        self.execute_inputs([self.reload_key])
 
-        ice_shrooms_total = self.inventory["Ice mushrm"]["Amount"]
-        print(f"Total ice shrooms after {self.count+1} runs: {ice_shrooms_total}")
-        if ice_shrooms_total==99:
-            self.execute_script = False
+        print(f"Total ice shrooms after {self.count+1} runs: {self.ice_shrooms}")
 
     def money_farming(self):
         requirements = {
@@ -127,18 +127,15 @@ class Digimon_World(game_automation):
         ]
         tasks += self.warp_home_and_save(requirements, from_shop=True)
         self.execute_task_list(tasks)
-        self.execute_inputs([self.reload_key])
+
         print(f"Total bits after {self.count+1} runs: {self.bits}")
-        if self.bits==999999:
-            self.execute_script = False
+
+    def boot_up_and_leave_house(self):
+        return [self.boot_up_game, self.exit_Jijimons_house]
 
     def from_boot_up_to_warp(self, destination):
-        tasks = [
-            self.boot_up_game,
-            self.exit_Jijimons_house,
-            self.to_Birdamon,
-            (self.warp_to, destination)
-        ]
+        tasks = self.boot_up_and_leave_house()
+        tasks += [self.to_Birdamon, (self.warp_to, destination)]
         return tasks
 
     def warp_home_and_save(self, requirements=None, from_shop=False):
@@ -229,6 +226,9 @@ class Digimon_World(game_automation):
         flags = tuple(map(int, format(self.address_values["Condition flag"], "08b")[::-1]))
         self.sleepy, self.tired, self.hungry, self.poopy, self.unhappy, self.injured, self.sick, _ = flags
         self.update_inventory()
+        self.chain_melons = self.inventory.get("Chain melon",{}).get("Amount", 0)
+        self.ice_shrooms  = self.inventory.get("Ice mushrm",{}).get("Amount", 0)
+        self.digipines    = self.inventory.get("Digipine",{}).get("Amount", 0)
 
     def update_inventory(self):
         self.inventory = {}
