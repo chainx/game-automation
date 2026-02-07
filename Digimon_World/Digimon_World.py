@@ -327,13 +327,13 @@ class Digimon_World(game_automation):
         self.task_name = "boot_up_game"
         self.destination_ID = 205
         self.execute_inputs([(Key.down,0.02,0), "z", ("z",0.1,1.8), "z", ("z",0.1,4)])
-        self.update_game_state()
-        self.initial_address_values = copy.deepcopy(self.address_values)
 
     def exit_Jijimons_house(self):
         self.task_name = "exit_Jijimons_house"
         self.destination_ID = 179
         self.execute_inputs([(Key.right, 3)])
+        self.update_game_state()
+        self.initial_address_values = copy.deepcopy(self.address_values)
 
     def to_Jijimons_house(self, from_shop=False):
         self.task_name = "to_Jijimons_house"
