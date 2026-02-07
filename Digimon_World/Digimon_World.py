@@ -40,13 +40,13 @@ class Digimon_World(game_automation):
 
         self.execute_inputs([self.reload_key])
 
-        # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"}, from_shop=True))
+        # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"})
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
         # self.practice_task(self.save_game, task_location=205)
         # self.practice_task(self.care_taking, end_executiion=False)
         # self.practice_task(self.sell_goodies, task_location=216, end_executiion=False)
         # self.practice_task(self.auto_pilot_home, end_executiion=False)
-        # self.practice_task((self.to_Jijimons_house, {"from_shop":False}))
+        # self.practice_task(self.to_Jijimons_house)
                 
     def __init__(self):
         super(Digimon_World, self).__init__()
@@ -125,7 +125,7 @@ class Digimon_World(game_automation):
             self.enter_shop_part2,
             self.sell_goodies,
         ]
-        tasks += self.warp_home_and_save(requirements, from_shop=True)
+        tasks += self.warp_home_and_save(requirements)
         self.execute_task_list(tasks)
 
         print(f"Total bits after {self.count+1} runs: {self.bits}")
@@ -138,11 +138,11 @@ class Digimon_World(game_automation):
         tasks += [self.to_Birdamon, (self.warp_to, destination)]
         return tasks
 
-    def warp_home_and_save(self, requirements=None, from_shop=False):
+    def warp_home_and_save(self, requirements=None):
         tasks = [
             self.care_taking,
             self.auto_pilot_home,
-            (self.to_Jijimons_house, {"from_shop": from_shop}),
+            self.to_Jijimons_house,
             (self.save_game, [requirements]),
         ]
         return tasks
@@ -335,13 +335,10 @@ class Digimon_World(game_automation):
         self.update_game_state()
         self.initial_address_values = copy.deepcopy(self.address_values)
 
-    def to_Jijimons_house(self, from_shop=False):
+    def to_Jijimons_house(self):
         self.task_name = "to_Jijimons_house"
         self.destination_ID = 205
-        if from_shop:
-            self.execute_inputs([ (Key.up,5),  ((Key.up,Key.left),1) ])
-        else:
-            self.execute_inputs([ (Key.up,6),  ((Key.up,Key.left),1) ])
+        self.execute_inputs([ (Key.up,5.5),  ((Key.up,Key.left),1) ])
 
     def to_Birdamon(self, From="Jijimons house"):
         self.task_name = "to_Birdamon"
