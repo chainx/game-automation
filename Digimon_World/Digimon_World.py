@@ -1,20 +1,15 @@
-import pandas as pd, time, copy, shutil, sys, os
+import time, copy, shutil, sys, os
 from pathlib import Path
 from pynput.keyboard import Key
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
-from memory_scan import WATCH_KEYS, get_address_value, print_watch_values, attach_process
-from dw1_addresses import ITEMS, ADDRESSES, LOCATIONS
+from memory_scan import get_address_value, attach_process
+from data import ADDRESSES, ITEMS, LOCATIONS
 
 DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
 MEMORY_CARD_LOCATION = Path("D:/Gaming/Emulators/PS1/cards/epsxe000.mcr")
-
-Evo_requirements = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Evolution")
-Food             = pd.read_excel(DATA_FILENAME, sheet_name="Food")
-Digimon_raise    = pd.read_excel(DATA_FILENAME, sheet_name="Digimon Raise")
-Arena_rewards    = pd.read_excel(DATA_FILENAME, sheet_name="Arena Rewards")
 
 def main():
     digimon_world = Digimon_World()
@@ -51,7 +46,7 @@ class Digimon_World(game_automation):
     def __init__(self):
         super(Digimon_World, self).__init__()
         self.reload_key = Key.f1
-        self.address_values = {key: None for key in WATCH_KEYS}
+        self.address_values = {key: None for key in ADDRESSES}
         self.process, self.psx_base = attach_process()
         self._closed = False
         print("Ready to run!")
