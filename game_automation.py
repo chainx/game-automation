@@ -23,6 +23,7 @@ class game_automation:
         self.has_previously_desynced = False
         self.count = 0 # Counts number of cycles executed
         self.keys_to_hold = []
+        self.keys_not_reset_after_desync = []
 
     def main(self): 
         pass # Overwritten by parent class
@@ -48,7 +49,9 @@ class game_automation:
                 self.main()
                 if self.has_desynced and self.execute_script:
                     print('Desync detected!')
-                    self.__dict__ = copy.deepcopy(original_state)
+                    for k, v in original_state.items():
+                        if k not in self.keys_not_reset_after_desync:
+                            self.__dict__[k] = copy.deepcopy(v)
                     self.has_desynced = False
                     self.has_previously_desynced = True
                     self.key_press(self.reload_key, wait=1.5)

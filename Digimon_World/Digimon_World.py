@@ -8,7 +8,6 @@ from game_automation import game_automation, keyboard
 from memory_scan import get_address_value, attach_process
 from data import ADDRESSES, ITEMS, LOCATIONS
 
-DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
 MEMORY_CARD_LOCATION = Path("D:/Gaming/Emulators/PS1/cards/epsxe000.mcr")
 
 def main():
@@ -18,31 +17,16 @@ def main():
 class Digimon_World(game_automation):
 
     def main(self):
-        if not hasattr(self, "inventory"):
-            # Initialise address values
-            self.execute_task_list(self.boot_up_and_leave_house())
-        else:
-            if (self.hour<7 or self.hour>18) and self.ice_shrooms < 99:
-                self.ice_shroom_farming()
-            elif self.chain_melons < 99:
-                self.chain_melon_farming()
-            elif self.digipines < 99:
-                self.digipine_farming()
-            elif self.bits < 999999:
-                self.money_farming()
-            else:
-                self.execute_script = False
+        self.farming()
 
-        self.execute_inputs([self.reload_key])
-
-        # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"})
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
-        # self.practice_task(self.save_game, task_location=205)
         # self.practice_task(self.care_taking, end_executiion=False)
-        # self.practice_task(self.sell_goodies, task_location=216, end_executiion=False)
+        # self.practice_task(self.sell_goodies_and_stock_up, task_location=216, end_executiion=False)
         # self.practice_task(self.auto_pilot_home, end_executiion=False)
         # self.practice_task(self.to_Jijimons_house)
-                
+        # self.practice_task(self.save_game, task_location=205)
+        # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"})
+
     def __init__(self):
         super(Digimon_World, self).__init__()
         self.reload_key = Key.f1
@@ -54,15 +38,38 @@ class Digimon_World(game_automation):
         self.verbose = False
         self.initial_address_values = {}
         self.destination_ID = None # Used to check if a desync occured during a task
+        self.has_rng_desynced = False # Used to re-save game in the event of an RNG desync
+        self.keys_not_reset_after_desync = ["has_rng_desynced"]
 
 # ==========================   TASK PIPELINES   ===============================
+
+    def farming(self):
+        reset_before_farming = self.has_rng_desynced # Next step sets the latter to True
+        self.execute_task_list(self.boot_up_and_leave_house())
+
+        if reset_before_farming:
+            pass
+        elif self.bits < 100000 or self.autopilots < 10:
+            self.money_farming()
+        elif (self.hour<7 or self.hour>18) and self.ice_shrooms < 99:
+            self.ice_shroom_farming()
+        elif self.chain_melons < 99:
+            self.chain_melon_farming()
+        elif self.digipines < 99:
+            self.digipine_farming()
+        elif self.bits < 999999:
+            self.money_farming()
+        else:
+            self.execute_script = False
+
+        self.execute_inputs([self.reload_key])
 
     def chain_melon_farming(self):
         requirements = {
             "Care mistakes": "same",
             "Item/Chain melon": "increased",
         }
-        tasks = self.from_boot_up_to_warp("Gear Savanna")
+        tasks = [self.to_Bidra_transport, (self.warp_to, "Gear Savanna")]
         tasks += [
             self.gear_savanna_rng_manip_part1,
             self.gear_savanna_rng_manip_part2,
@@ -80,7 +87,7 @@ class Digimon_World(game_automation):
             "Care mistakes": "same",
             "Item/Digipine": "increased",
         }
-        tasks = self.from_boot_up_to_warp("Misty Trees")
+        tasks = [self.to_Bidra_transport, (self.warp_to, "Misty Trees")]
         tasks += [
             self.misty_trees_rng_manip_part1,
             self.misty_trees_rng_manip_part2,
@@ -96,7 +103,7 @@ class Digimon_World(game_automation):
             "Care mistakes": "same",
             "Item/Ice mushrm": "increased",
         }
-        tasks = self.from_boot_up_to_warp("Freezeland")
+        tasks = [self.to_Bidra_transport, (self.warp_to, "Freezeland")]
         tasks += [self.pick_up_ice_shroom]
         tasks += self.warp_home_and_save(requirements)
         self.execute_task_list(tasks)
@@ -108,7 +115,7 @@ class Digimon_World(game_automation):
             "Care mistakes": "same",
             "Bits": "increased"
         }
-        tasks = self.from_boot_up_to_warp("Freezeland")
+        tasks = [self.to_Bidra_transport, (self.warp_to, "Freezeland")]
         tasks += [
             self.to_Mojyamon_part1,
             self.to_Mojyamon_part2,
@@ -118,7 +125,7 @@ class Digimon_World(game_automation):
             self.auto_pilot_home,
             self.enter_shop_part1,
             self.enter_shop_part2,
-            self.sell_goodies,
+            self.sell_goodies_and_stock_up,
         ]
         tasks += self.warp_home_and_save(requirements)
         self.execute_task_list(tasks)
@@ -126,12 +133,9 @@ class Digimon_World(game_automation):
         print(f"Total bits after {self.count+1} runs: {self.bits}")
 
     def boot_up_and_leave_house(self):
+        if self.has_rng_desynced:
+            return [self.boot_up_game, self.save_game]
         return [self.boot_up_game, self.exit_Jijimons_house]
-
-    def from_boot_up_to_warp(self, destination):
-        tasks = self.boot_up_and_leave_house()
-        tasks += [self.to_Birdamon, (self.warp_to, destination)]
-        return tasks
 
     def warp_home_and_save(self, requirements=None):
         tasks = [
@@ -224,6 +228,7 @@ class Digimon_World(game_automation):
         self.chain_melons = self.inventory.get("Chain melon",{}).get("Amount", 0)
         self.ice_shrooms  = self.inventory.get("Ice mushrm",{}).get("Amount", 0)
         self.digipines    = self.inventory.get("Digipine",{}).get("Amount", 0)
+        self.autopilots   = self.inventory.get("Auto Pilot",{}).get("Amount", 0)
 
     def update_inventory(self):
         self.inventory = {}
@@ -308,7 +313,11 @@ class Digimon_World(game_automation):
     def save_game(self, requirements={}):
         self.task_name = "save_game"
         if self.check_requirements(requirements):
-            self.execute_inputs([(Key.left, 2), (Key.up,0.1), (Key.left, 0.5, 0.5)])
+            if not self.has_rng_desynced: # Movement not needed if re-saving after RNG desync
+                self.execute_inputs([(Key.left, 2), (Key.up,0.1), (Key.left, 0.5, 0.5)])
+            else:
+                time.sleep(4)
+                self.has_rng_desynced = False
             self.execute_inputs([("z",0.25), ("z",0.1), "z", Key.down, "z", "z"])
             time.sleep(3)
 
@@ -335,8 +344,8 @@ class Digimon_World(game_automation):
         self.destination_ID = 205
         self.execute_inputs([ (Key.up,5.5),  ((Key.up,Key.left),1) ])
 
-    def to_Birdamon(self, From="Jijimons house"):
-        self.task_name = "to_Birdamon"
+    def to_Bidra_transport(self, From="Jijimons house"):
+        self.task_name = "to_Bidra_transport"
         self.destination_ID = 207
         if From=="Jijimons house":
             self.execute_inputs([ ((Key.down,Key.right), 4.2) ])
@@ -365,13 +374,18 @@ class Digimon_World(game_automation):
         self.use_item("Auto Pilot")
         time.sleep(1)
 
-    def sell_goodies(self):
-        self.task_name = "sell_goodies"
-        self.execute_inputs([ (Key.up, 2.5), ((Key.up, Key.left),.3) ])
-        self.execute_inputs([ ("z",.5), ("z",.5), ("z",.8), Key.down, ("z",.3), "x", ("z",.3), ("z",.5) ])
+    def sell_goodies_and_stock_up(self):
+        self.task_name = "sell_goodies_and_stock_up"
+        inputs =  [ (Key.up, 2.5), ((Key.up, Key.left),.3), ("z",.5), ("z",.5)  ]
+        inputs += [ ("z",.8), Key.down, ("z",.3), "x", ("z",.3), ("z",.5) ]
+        for n, item in enumerate(["Meat", "Port.potty", "Auto Pilot"]):
+            if self.inventory.get(item,{}).get("Amount", 0) < 99:
+                inputs += [ ("z",.8), ((Key.shift_r, Key.down),.1,.4) ] 
+                inputs += [Key.up]*n + [ ("z",.3), "x", ("z",.3), ("z",.5) ]
         n = self.inventory["S.Def.disk"]["Location"]
-        self.execute_inputs( [Key.down, ("z",.8)] + [Key.down]*n + [("z",.3), "x", ("z",.3), ("z",.5)] )
-        self.execute_inputs([ ("a",.5), ("z",.2) ])        
+        inputs += [Key.down, ("z",.8)] + [Key.down]*n + [("z",.3), "x", ("z",.3), ("z",.5)]
+        inputs += [ ("a",.5), ("z",.2) ]
+        self.execute_inputs(inputs)     
 
     def enter_shop_part1(self):
         self.task_name = "enter_shop_part1"
@@ -396,7 +410,7 @@ class Digimon_World(game_automation):
             self.execute_inputs([ (Key.down,1,1.3), (Key.down,1) ])
         else:
             print(f"RNG desync in gear savanna: {self.rng}")
-            self.has_desynced = True
+            self.has_desynced, self.has_rng_desynced = True, True
 
     def gear_savanna_rng_manip_part2(self):
         self.task_name = "gear_savanna_rng_manip_part2"
@@ -430,8 +444,8 @@ class Digimon_World(game_automation):
             if self.rng == 228325532: break
             # elif self.rng == 979431494: self.has_desynced = True
         if self.rng != 228325532:
-            print("RNG value wrong")
-            self.has_desynced = True
+            print(f"RNG desync in misty trees: {self.rng}")
+            self.has_desynced, self.has_rng_desynced = True, True
 
         self.execute_inputs([(Key.right,2.5)])
         
@@ -442,7 +456,7 @@ class Digimon_World(game_automation):
 
     def misty_trees_rng_manip_part3(self):
         self.task_name = "misty_trees_rng_manip_part3"
-        self.execute_inputs([ ((Key.down, Key.left),6), (Key.left,2), ("z", 1.5)])
+        self.execute_inputs([ ((Key.down, Key.left),6), (Key.left,2), ("z", 1.2)])
 
     def pick_up_ice_shroom(self):
         self.task_name = "pick_up_ice_shroom"
