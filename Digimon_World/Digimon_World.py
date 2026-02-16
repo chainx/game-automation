@@ -44,7 +44,7 @@ class Digimon_World(game_automation):
 # ==========================   TASK PIPELINES   ===============================
 
     def farming(self):
-        reset_before_farming = self.has_rng_desynced # Next step sets the latter to True
+        reset_before_farming = self.has_rng_desynced # Next step sets the latter to False
         self.execute_task_list(self.boot_up_and_leave_house())
 
         if reset_before_farming:
