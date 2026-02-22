@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
 from memory_scan import get_address_value, attach_process
-from data import ADDRESSES, ITEMS, LOCATIONS
+from data import ADDRESSES, ITEMS, LOCATIONS, ID_TO_NAME
 
 MEMORY_CARD_LOCATION = Path("D:/Gaming/Emulators/PS1/cards/epsxe000.mcr")
 
@@ -22,10 +22,7 @@ class Digimon_World(game_automation):
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
         # self.practice_task(self.care_taking, end_executiion=False)
         # self.practice_task(self.sell_goodies_and_stock_up, task_location=216, end_executiion=False)
-        # self.practice_task(self.auto_pilot_home, end_executiion=False)
-        # self.practice_task(self.to_Jijimons_house)
-        # self.practice_task(self.save_game, task_location=205)
-        # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"})
+        # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"}))
 
     def __init__(self):
         super(Digimon_World, self).__init__()
