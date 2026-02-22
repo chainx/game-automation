@@ -1,5 +1,0 @@
-pyautogui
-pynput
-pygetwindow
-ewmh
-fuzzywuzzy

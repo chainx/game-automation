@@ -1,0 +1,10 @@
+pandas
+psutil
+pynput
+pyautogui
+pillow
+ewmh
+pytesseract
+fuzzywuzzy
+python-Levenshtein
+opencv-python
