@@ -96,7 +96,7 @@ ADDRESSES = {
     "Lifespan":              {"address": "PSXBaseAddress+001384A8", "type": "2 Bytes"},
     "Age since Digivolution":{"address": "PSXBaseAddress+001384B6", "type": "2 Bytes"},
 
-    "Digimon ID":            {'address': 'PSXBaseAddress+001BE036', 'type': '2 Bytes'},
+    "Digimon ID":            {'address': 'PSXBaseAddress+001557A8', 'type': 'Byte'},
     "Bedtime":               {"address": "PSXBaseAddress+00138468", "type": "2 Bytes"},
 
     "Condition flag":        {"address": "PSXBaseAddress+00138460", "type": "Binary"},
