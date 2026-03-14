@@ -17,7 +17,8 @@ def main():
 class Digimon_World(game_automation):
 
     def main(self):
-        self.farming()
+        self.fishing(fish_type="Digicatfish") # Digianchovy, Black trout, Digiseabass, Digicatfish
+        # self.farming()
 
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
         # self.practice_task(self.care_taking, end_executiion=False)
@@ -39,6 +40,52 @@ class Digimon_World(game_automation):
         self.keys_not_reset_after_desync = ["has_rng_desynced"]
 
 # ==========================   TASK PIPELINES   ===============================
+
+    def fishing(self, fish_type):
+        max_tension = 4500
+        if fish_type == "Digianchovy":
+            throw_time, wait_time, bait = 0.035, 1.5, "Meat"
+        elif fish_type == "Black trout": 
+            throw_time, wait_time, bait = 0.2, 1, "Meat"
+        elif fish_type == "Digiseabass": 
+            throw_time, wait_time, bait = 0.45, 1, "Black trout"
+        elif fish_type == "Digicatfish":
+            throw_time, wait_time, bait = 0.5, 1, "Chain melon"
+        else:
+            raise RuntimeError(f"Fish type {fish_type} not recognised")
+
+        self.update_game_state()
+        if bait not in self.inventory or self.inventory.get(fish_type)==99:
+            self.key_press(Key.enter)
+            self.execute_script = False
+            return
+
+        # Throwing out bait
+        self.use_item(bait, fishing=True)
+        self.update_game_state()
+        while self.address_values["Fishing State"] == 6:
+            self.execute_inputs([("z",throw_time),("z",0.1,2)])
+            self.update_game_state()
+
+        # Hooking fish
+        initial_frames = self.address_values["Frames Since Hooked"]
+        while self.address_values["Frames Since Hooked"] == initial_frames:
+            if not self.execute_script: return
+            if self.address_values["Fishing State"] == 6: # Line automatically pulled in after 2 mins
+                self.key_press("a")
+                return 
+            time.sleep(0.1)
+            self.update_game_state()
+        while self.address_values["Frames Since Hooked"] < self.address_values["Nibble Time"] + 5:
+            self.update_game_state()
+        self.execute_inputs(["z"]*10)
+
+        # Reeling it in
+        while self.address_values["Fishing State"] in [10, 11]:
+            if self.address_values["Tension Bar"] < max_tension:
+                self.execute_inputs([("z",0.001,0)])
+            self.update_game_state()
+        self.execute_inputs([("z",wait_time),"z"])
 
     def farming(self):
         reset_before_farming = self.has_rng_desynced # Next step sets the latter to False
@@ -263,7 +310,7 @@ class Digimon_World(game_automation):
 
 # ==========================   TASK INPUTS (TOWN)   ===============================
 
-    def use_item(self, item_name):
+    def use_item(self, item_name, fishing=False):
         """ Begins at the top left of the menu """
         self.update_game_state()
         if item_name not in self.inventory:
@@ -272,14 +319,19 @@ class Digimon_World(game_automation):
             return
         
         item_location = self.inventory[item_name]["Location"]
-        self.execute_inputs([("a", 0.3), ("z", 0.9)])
+        inv_open_time = 0.9 if not fishing else 0.5
+        self.execute_inputs([("a", 0.3), ("z", inv_open_time)])
         if item_location % 2 == 1:
             self.execute_inputs([Key.right])
         for n in range(item_location//2):
             self.execute_inputs([Key.down])
         self.execute_inputs([("z", 0.25), "z"])
+
+        if fishing: 
+            time.sleep(0.5)
+            return
+
         time.sleep(4)
-        
         self.update_game_state()
         if self.address_values["Needs scolding"]:
             self.execute_inputs([("a", 0.3), Key.right, Key.down, ("z",2)])
@@ -300,7 +352,7 @@ class Digimon_World(game_automation):
             self.execute_inputs([("a", 0.3), Key.left, ("z",7.2), ("z",2.5)])
     
     def feeding(self, food_preference="Sirloin"):
-        if self.address_values["Lifespan"] < 20:
+        if self.address_values["Lifespan"] < 40:
             food_preference = "Chain melon"
         self.use_item(food_preference)
         self.update_game_state()

@@ -122,6 +122,11 @@ ADDRESSES = {
     "Drimogemon":            {"address": "PSXBaseAddress+001BE04F", "type": "Byte"},
     "Back Dimension":        {"address": "PSXBaseAddress+001BE04D", "type": "Byte"},
 
+    "Fishing State":         {"address": "PSXBaseAddress+0007B41C", "type": "Byte"},
+    "Frames Since Hooked":   {"address": "PSXBaseAddress+0007B484", "type": "4 Bytes"},
+    "Nibble Time":           {"address": "PSXBaseAddress+0007B49C", "type": "4 Bytes"},
+    "Tension Bar":           {"address": "PSXBaseAddress+0007B504", "type": "4 Bytes"},
+
     "Current Screen ID":     {"address": "PSXBaseAddress+00134DA8", "type": "Byte"},
     "RNG":                   {"address": "PSXBaseAddress+00009010", "type": "4 Bytes"},
     "Location X":            {"address": "PSXBaseAddress+0015577E", "type": "2 Bytes"},
