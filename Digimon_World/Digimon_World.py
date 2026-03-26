@@ -17,8 +17,8 @@ def main():
 class Digimon_World(game_automation):
 
     def main(self):
-        self.fishing(fish_type="Digicatfish") # Digianchovy, Black trout, Digiseabass, Digicatfish
-        # self.farming()
+        # self.fishing(fish_type="Black trout") # Digianchovy, Black trout, Digiseabass, Digicatfish
+        self.farming()
 
         # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
         # self.practice_task(self.care_taking, end_executiion=False)
@@ -109,6 +109,7 @@ class Digimon_World(game_automation):
         self.execute_inputs([self.reload_key])
 
     def chain_melon_farming(self):
+        self.used_chain_melon = False
         requirements = {
             "Care mistakes": "same",
             "Item/Chain melon": "increased",
@@ -285,6 +286,8 @@ class Digimon_World(game_automation):
                 }
     
     def check_requirements(self, requirements):
+        if self.used_chain_melon and "Item/Chain melon" in requirements.keys():
+            requirements["Item/Chain melon"] = "same"
         self.update_game_state()
         proceed = True
         for address, requirement_type in requirements.items():
@@ -349,11 +352,12 @@ class Digimon_World(game_automation):
         if self.injured or self.sick:
             self.use_item("Medicine")
         if self.sleepy and self.address_values["Bedtime"]-self.hour < 4:
-            self.execute_inputs([("a", 0.3), Key.left, ("z",7.2), ("z",2.5)])
+            self.execute_inputs([("a", 0.3), Key.left, ("z",7.7), ("z",2.5)])
     
     def feeding(self, food_preference="Sirloin"):
         if self.address_values["Lifespan"] < 40:
             food_preference = "Chain melon"
+            self.used_chain_melon = True
         self.use_item(food_preference)
         self.update_game_state()
         if self.sick: # Cancel sickness textbox
