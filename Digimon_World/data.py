@@ -110,6 +110,7 @@ ADDRESSES = {
 
     "Bits":                  {"address": "PSXBaseAddress+00134EB8", "type": "4 Bytes"},
     "Tournaments won":       {"address": "PSXBaseAddress+00134FCC", "type": "2 Bytes"},
+    "Tournaments lost":      {'address': 'PSXBaseAddress+00134FD0', 'type': '2 Bytes'},
     "Tamer Level":           {"address": "PSXBaseAddress+001557A4", "type": "Byte"},
 
     "Year":                  {"address": "PSXBaseAddress+00134F02", "type": "Byte"},
@@ -129,6 +130,7 @@ ADDRESSES = {
 
     "Current Screen ID":     {"address": "PSXBaseAddress+00134DA8", "type": "Byte"},
     "RNG":                   {"address": "PSXBaseAddress+00009010", "type": "4 Bytes"},
+    "Textbox Timer":         {'address': 'PSXBaseAddress+00135012', 'type': 'Byte'},
     "Location X":            {"address": "PSXBaseAddress+0015577E", "type": "2 Bytes"},
     "Location Y":            {"address": "PSXBaseAddress+00155786", "type": "2 Bytes"},
     "Location Z":            {"address": "PSXBaseAddress+00155782", "type": "2 Bytes"},

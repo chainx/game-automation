@@ -18,12 +18,10 @@ class Digimon_World(game_automation):
 
     def main(self):
         # self.fishing(fish_type="Black trout") # Digianchovy, Black trout, Digiseabass, Digicatfish
-        self.farming()
+        # self.farming()
+        self.tournament_grind()
 
-        # self.practice_task(self.misty_trees_rng_manip_part1, task_location=119)
-        # self.practice_task(self.care_taking, end_executiion=False)
-        # self.practice_task(self.sell_goodies_and_stock_up, task_location=216, end_executiion=False)
-        # self.execute_task_list(self.warp_home_and_save({"Care mistakes": "same"}))
+        # self.practice_task(self.wait_in_hospital, task_location=213)
 
     def __init__(self):
         super(Digimon_World, self).__init__()
@@ -37,9 +35,33 @@ class Digimon_World(game_automation):
         self.initial_address_values = {}
         self.destination_ID = None # Used to check if a desync occured during a task
         self.has_rng_desynced = False # Used to re-save game in the event of an RNG desync
+        self.used_chain_melon = False # Used for checking requirements while chain melon farming
+        self.food_preference = "Sirloin"
+        self.backup_food_preference = "Chain melon"
         self.keys_not_reset_after_desync = ["has_rng_desynced"]
 
 # ==========================   TASK PIPELINES   ===============================
+
+    def tournament_grind(self):
+        days_to_skip = [5, 17, 23, 29, 30]
+
+        tasks = [(self.boot_up_game, 213)] if self.count==0 or self.has_previously_desynced else []
+        tasks += [
+            (self.leave_hospital, [days_to_skip]),
+            self.go_to_tournament,
+            self.win_tournament,
+            self.back_to_hospital,
+            self.wait_in_hospital,
+        ]
+        self.execute_task_list(tasks)
+        
+        print(f"Total tournament wins after {self.count+1} runs: {self.address_values['Tournaments won']}")
+        if self.has_desynced:
+            self.key_press(self.reload_key)
+        else:
+            time.sleep(2)
+        if self.porta_pottys < 5:
+            self.execute_script = False
 
     def fishing(self, fish_type):
         max_tension = 4500
@@ -106,7 +128,7 @@ class Digimon_World(game_automation):
         else:
             self.execute_script = False
 
-        self.execute_inputs([self.reload_key])
+        self.key_press(self.reload_key)
 
     def chain_melon_farming(self):
         self.used_chain_melon = False
@@ -196,10 +218,10 @@ class Digimon_World(game_automation):
     def execute_task_list(self, tasks):
         for task in tasks:
             self.execute_task(task)
+            self.waiting()
             if self.has_desynced:
                 print(f"Desynced on task: {self.task_name}")
                 return
-            self.waiting()
 
     def execute_task(self, task):
         if isinstance(task, tuple):
@@ -213,7 +235,7 @@ class Digimon_World(game_automation):
             task()
 
     def waiting(self):
-        if self.destination_ID:
+        if self.destination_ID and not self.has_desynced:
             self.update_game_state()
             if self.location_ID!=self.destination_ID:
                 self.wait_for_screen_transition(self.destination_ID)
@@ -221,6 +243,8 @@ class Digimon_World(game_automation):
                 print(f"{self.task_name} executed too late", self.location_ID)
                 self.has_desynced = True
             if self.has_desynced: 
+                if self.task_name == "go_to_tournament":
+                    self.has_rng_desynced = True
                 return
             self.destination_ID = None
 
@@ -274,6 +298,7 @@ class Digimon_World(game_automation):
         self.ice_shrooms  = self.inventory.get("Ice mushrm",{}).get("Amount", 0)
         self.digipines    = self.inventory.get("Digipine",{}).get("Amount", 0)
         self.autopilots   = self.inventory.get("Auto Pilot",{}).get("Amount", 0)
+        self.porta_pottys = self.inventory.get("Port. potty",{}).get("Amount", 0)
 
     def update_inventory(self):
         self.inventory = {}
@@ -340,25 +365,27 @@ class Digimon_World(game_automation):
             self.execute_inputs([("a", 0.3), Key.right, Key.down, ("z",2)])
             self.use_item(item_name)
 
-    def care_taking(self, food_preference="Sirloin"):
-        self.task_name = "care_taking"
+    def care_taking(self):
         self.update_game_state()
-        if self.verbose: print("Starting care taking")
-
         if self.poopy:
             self.use_item("Port. potty")
         if self.hungry:
-            self.feeding(food_preference)
+            self.feeding()
         if self.injured or self.sick:
             self.use_item("Medicine")
         if self.sleepy and self.address_values["Bedtime"]-self.hour < 4:
             self.execute_inputs([("a", 0.3), Key.left, ("z",7.7), ("z",2.5)])
     
-    def feeding(self, food_preference="Sirloin"):
+    def feeding(self):
         if self.address_values["Lifespan"] < 40:
-            food_preference = "Chain melon"
+            self.food_preference = "Chain melon"
+        if self.inventory.get(self.food_preference,{}).get("Amount",0) == 0:
+            self.food_preference = self.backup_food_preference
+        if self.food_preference == "Chain melon":
             self.used_chain_melon = True
-        self.use_item(food_preference)
+        
+        self.use_item(self.food_preference)
+
         self.update_game_state()
         if self.sick: # Cancel sickness textbox
              self.execute_inputs([("z",0.1)])
@@ -379,10 +406,10 @@ class Digimon_World(game_automation):
             filename = f"{self.year}_{self.day}_{self.hour}_{self.minute}.mcr"
             shutil.copyfile(MEMORY_CARD_LOCATION, debug_dir / filename)
 
-    def boot_up_game(self):
+    def boot_up_game(self, destination_ID=205):
         """ Begins at the top of the opening menu """
         self.task_name = "boot_up_game"
-        self.destination_ID = 205
+        self.destination_ID = destination_ID
         self.execute_inputs([(Key.down,0.02,0), "z", ("z",0.1,1.8), "z", ("z",0.1,4)])
 
     def exit_Jijimons_house(self):
@@ -541,6 +568,90 @@ class Digimon_World(game_automation):
         while "med.recovery" in self.inventory:
             self.execute_inputs([ ("z", 0.5), "z", ("z", 0.8), Key.down, "z", ("z", 0.5), ("z", 0.5), "z" ])
             self.update_game_state()
+
+    def leave_hospital(self, days_to_skip=[]):
+        self.task_name = "leave_hospital"
+        self.destination_ID = 192
+        time.sleep(2.2)
+        self.update_game_state()
+        self.initial_address_values = copy.deepcopy(self.address_values)
+        if self.address_values["Day"] in days_to_skip:
+            self.wait_in_hospital(walk_to_centaturmon=False)
+            print("Haven't desynced, just waiting for a day!")
+            self.has_desynced = True
+            return
+        for n in range(2):
+            self.execute_inputs([((Key.down,Key.right), .5), ('z',.6), ('z',.5), ('z',.5), ('z',4)])
+        self.care_taking()
+        self.initial_address_values = copy.deepcopy(self.address_values)
+        self.execute_inputs([(Key.left, .5), ((Key.up,Key.left), 1.1), ((Key.up,Key.right), .8), (Key.right,3)])
+
+    def go_to_tournament(self):
+        self.task_name = "go_to_tournament"
+        self.destination_ID = 223
+        if self.has_rng_desynced:
+            self.execute_inputs([(Key.right, 4.75), (Key.down, 2)])
+        else:
+            self.execute_inputs([(Key.right, 4.45), (Key.down, 2)])
+
+    def win_tournament(self):
+        self.task_name = "win_tournament"
+        self.destination_ID = 192
+
+        # Enter tournament
+        self.execute_inputs([(Key.up,4), ('z',1.3), ('z',.5), ('z',.5), ('z',.6), Key.up])
+        self.update_game_state()
+        while self.address_values["Textbox Timer"] > 15:
+            self.execute_inputs([Key.up, ('z',.85)])
+            self.update_game_state()
+        self.execute_inputs([('z',.6), ('z',.8), (Key.left,.7), (Key.up,.7)])
+        while self.hour < 10:
+            time.sleep(0.1)
+            self.care_taking()
+        self.key_press(Key.up, 1)
+
+        # Wait for it to end then leave
+        while self.hour == 10:
+            self.key_press('z',0.2)
+            self.update_game_state()
+        time.sleep(6)
+        if self.address_values["Tournaments won"] == self.initial_address_values["Tournaments won"]:
+            self.has_desynced = True
+            print("The tournament was lost :(")
+            return
+        self.key_press('z')
+        self.care_taking()
+        self.execute_inputs([(Key.down,1.3), ((Key.down,Key.right),1.5), (Key.down,2)])
+
+    def back_to_hospital(self):
+        self.task_name = "back_to_hospital"
+        self.destination_ID = 213
+        self.execute_inputs([(Key.left,5), ((Key.left,Key.down),1)])
+
+    def wait_in_hospital(self, walk_to_centaturmon=True):
+        self.task_name = "wait_in_hospital"
+        if walk_to_centaturmon:
+            self.execute_inputs([(Key.left, 2.7), ((Key.down,Key.left), .7), ((Key.down,Key.right), 1.2), (Key.right, .3), (Key.down, .3)])
+        not_saved, prev_hour = True, None
+        while not_saved:
+            prev_hour = self.hour
+            self.execute_inputs([((Key.down,Key.right), .5), ('z',.6), ('z',.5), ('z',.5), ('z',4)])
+            self.update_game_state()
+            if prev_hour == self.hour:
+                self.has_desynced = True
+                return
+            if self.sleepy:
+                if self.poopy:
+                    self.use_item("Port. potty")
+                self.execute_inputs([("a", 0.3), Key.left, ("z",7.7), Key.down, ("z",3.25)])
+                not_saved=False
+                self.has_rng_desynced = False
+                debug_dir = MEMORY_CARD_LOCATION.parent / "Debug"
+                debug_dir.mkdir(exist_ok=True)
+                filename = f"{self.year}_{self.day}_{self.hour}_{self.minute}.mcr"
+                shutil.copyfile(MEMORY_CARD_LOCATION, debug_dir / filename)
+            else:
+                self.care_taking()
 
 # ==========================   LIFECYCLE   ===================================
 
