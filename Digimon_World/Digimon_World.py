@@ -1,48 +1,83 @@
 import time, copy, shutil, sys, os
 from pathlib import Path
+from typing import Literal
 from pynput.keyboard import Key
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
 from memory_scan import get_address_value, attach_process
-from data import ADDRESSES, ITEMS, LOCATIONS, ID_TO_NAME
+from data import ADDRESSES, ITEMS, LOCATIONS, ID_TO_NAME, FOOD_ITEMS
 
 MEMORY_CARD_LOCATION = Path("D:/Gaming/Emulators/PS1/cards/epsxe000.mcr")
 
 def main():
     digimon_world = Digimon_World()
-    digimon_world.run_script()
+    try:
+        digimon_world.run_automations([
+            digimon_world.fishing,
+            digimon_world.farming,
+            digimon_world.tournament_grind,
+            digimon_world.curling,
+        ])
+    finally:
+        digimon_world.close()
 
 class Digimon_World(game_automation):
 
     def main(self):
         # self.fishing(fish_type="Black trout") # Digianchovy, Black trout, Digiseabass, Digicatfish
         # self.farming()
-        self.tournament_grind()
+        # self.tournament_grind()
+        self.curling()
 
         # self.practice_task(self.wait_in_hospital, task_location=213)
 
+    def curling(self):
+        """Play curling, releasing the throw when the power reaches 1400.
+
+        Start with the game ready to take a curling shot.
+        """
+        self.key_press('z')
+        while self.address_values["Curling Power"] != 1400:
+            if not self.execute_script:
+                return
+            self.update_game_state()
+            print(self.address_values["Curling Power"])
+        self.key_press('z')
+
+    def battle(self):
+        pass # TODO: Implement battle automation
+
     def __init__(self):
-        super(Digimon_World, self).__init__()
+        super(Digimon_World, self).__init__(state_defaults={
+            "food_preference": "Chain melon",
+            "backup_food_preference": "Sirloin",
+            "verbose": False,
+        }, state_choices={
+            "food_preference": FOOD_ITEMS,
+            "backup_food_preference": FOOD_ITEMS,
+        })
         self.reload_key = Key.f1
         self.address_values = {key: None for key in ADDRESSES}
         self.process, self.psx_base = attach_process()
         self._closed = False
         print("Ready to run!")
 
-        self.verbose = False
         self.initial_address_values = {}
         self.destination_ID = None # Used to check if a desync occured during a task
         self.has_rng_desynced = False # Used to re-save game in the event of an RNG desync
         self.used_chain_melon = False # Used for checking requirements while chain melon farming
-        self.food_preference = "Sirloin"
-        self.backup_food_preference = "Chain melon"
         self.keys_not_reset_after_desync = ["has_rng_desynced"]
 
 # ==========================   TASK PIPELINES   ===============================
 
     def tournament_grind(self):
+        """Repeat tournament wins, returning to hospital between tournaments.
+
+        Uses the configured save/reload route and skips unsuitable tournament days.
+        Stops when fewer than five Port. potty items remain.
+        """
         days_to_skip = [5, 17, 23, 29, 30]
 
         tasks = [(self.boot_up_game, 213)] if self.count==0 or self.has_previously_desynced else []
@@ -63,7 +98,14 @@ class Digimon_World(game_automation):
         if self.porta_pottys < 5:
             self.execute_script = False
 
-    def fishing(self, fish_type):
+    def fishing(self, fish_type: Literal["Digianchovy", "Black trout", "Digiseabass", "Digicatfish"]):
+        """Catch the selected fish from a fishing spot with the appropriate bait.
+
+        **The bait must be at the top of the inventory.**
+
+        Digianchovy and Black trout use Meat; Digiseabass uses Black trout;
+        Digicatfish uses Chain melon. Stops when bait runs out or you have 99 fish.
+        """
         max_tension = 4500
         if fish_type == "Digianchovy":
             throw_time, wait_time, bait = 0.035, 1.5, "Meat"
@@ -77,8 +119,14 @@ class Digimon_World(game_automation):
             raise RuntimeError(f"Fish type {fish_type} not recognised")
 
         self.update_game_state()
-        if bait not in self.inventory or self.inventory.get(fish_type)==99:
-            self.key_press(Key.enter)
+        if self.inventory.get(bait, {}).get("Amount", 0) <= 0:
+            self.stop_reason = f"Cannot fish for {fish_type}: no {bait} bait detected in inventory."
+            print(self.stop_reason)
+            self.execute_script = False
+            return
+        if self.inventory.get(fish_type, {}).get("Amount", 0) >= 99:
+            self.stop_reason = f"Fishing stopped: you already have 99 {fish_type}."
+            print(self.stop_reason)
             self.execute_script = False
             return
 
@@ -86,6 +134,8 @@ class Digimon_World(game_automation):
         self.use_item(bait, fishing=True)
         self.update_game_state()
         while self.address_values["Fishing State"] == 6:
+            if not self.execute_script:
+                return
             self.execute_inputs([("z",throw_time),("z",0.1,2)])
             self.update_game_state()
 
@@ -99,17 +149,27 @@ class Digimon_World(game_automation):
             time.sleep(0.1)
             self.update_game_state()
         while self.address_values["Frames Since Hooked"] < self.address_values["Nibble Time"] + 5:
+            if not self.execute_script:
+                return
             self.update_game_state()
         self.execute_inputs(["z"]*10)
 
         # Reeling it in
         while self.address_values["Fishing State"] in [10, 11]:
+            if not self.execute_script:
+                return
             if self.address_values["Tension Bar"] < max_tension:
                 self.execute_inputs([("z",0.001,0)])
             self.update_game_state()
         self.execute_inputs([("z",wait_time),"z"])
 
     def farming(self):
+        """Farm money, Ice mushrm, Chain melon and Digipine using the saved route.
+
+        Each money run earns 146,100 bits. Money farming requires an Auto Pilot,
+        99 med.recovery, and 51,500 bits plus the cost of refilling Meat,
+        Port. potty and Auto Pilot to 99 each.
+        """
         reset_before_farming = self.has_rng_desynced # Next step sets the latter to False
         self.execute_task_list(self.boot_up_and_leave_house())
 
@@ -178,6 +238,8 @@ class Digimon_World(game_automation):
         print(f"Total ice shrooms after {self.count+1} runs: {self.ice_shrooms}")
 
     def money_farming(self):
+        """Run the Freezeland trading route, then sell goods and restock in town."""
+        self.check_money_farming_requirements()
         requirements = {
             "Care mistakes": "same",
             "Bits": "increased"
@@ -198,6 +260,33 @@ class Digimon_World(game_automation):
         self.execute_task_list(tasks)
 
         print(f"Total bits after {self.count+1} runs: {self.bits}")
+
+    def check_money_farming_requirements(self):
+        """Reject an under-supplied money run before sending any route inputs."""
+        self.update_game_state()
+        prices = {"Meat": 50, "Port. potty": 300, "Auto Pilot": 300}
+        refill_cost = sum(
+            max(0, 99 - self.inventory.get(item, {}).get("Amount", 0)) * price
+            for item, price in prices.items()
+        )
+        required_bits = 2000 + 49500 + refill_cost
+        problems = []
+        autopilots = self.inventory.get("Auto Pilot", {}).get("Amount", 0)
+        recoveries = self.inventory.get("med.recovery", {}).get("Amount", 0)
+        if autopilots < 1:
+            problems.append("at least 1 Auto Pilot is required (have 0)")
+        if recoveries < 99:
+            problems.append(f"99 med.recovery are required (have {recoveries})")
+        if self.bits < required_bits:
+            problems.append(
+                f"need {required_bits:,} bits (2,000 + 49,500 + {refill_cost:,} to refill "
+                f"Meat, Port. potty and Auto Pilot to 99); have {self.bits:,} "
+                f"(short by {required_bits - self.bits:,})"
+            )
+        if problems:
+            self.stop_reason = "Cannot start money farming: " + "; ".join(problems) + "."
+            self.execute_script = False
+            raise RuntimeError(self.stop_reason)
 
     def boot_up_and_leave_house(self):
         if self.has_rng_desynced:
@@ -457,13 +546,18 @@ class Digimon_World(game_automation):
     def sell_goodies_and_stock_up(self):
         self.task_name = "sell_goodies_and_stock_up"
         inputs =  [ (Key.up, 2.5), ((Key.up, Key.left),.3), ("z",.5), ("z",.5)  ]
+
+        # Buy items
         inputs += [ ("z",.8), Key.down, ("z",.3), "x", ("z",.3), ("z",.5) ]
-        for n, item in enumerate(["Meat", "Port.potty", "Auto Pilot"]):
+        for n, item in enumerate(["Meat", "Port. potty", "Auto Pilot"]):
             if self.inventory.get(item,{}).get("Amount", 0) < 99:
                 inputs += [ ("z",.8), ((Key.shift_r, Key.down),.1,.4) ] 
                 inputs += [Key.up]*n + [ ("z",.3), "x", ("z",.3), ("z",.5) ]
+
+        # Sell items
         n = self.inventory["S.Def.disk"]["Location"]
         inputs += [Key.down, ("z",.8)] + [Key.down]*n + [("z",.3), "x", ("z",.3), ("z",.5)]
+
         inputs += [ ("a",.5), ("z",.2) ]
         self.execute_inputs(inputs)     
 

@@ -2,8 +2,12 @@ import pandas as pd
 
 DATA_FILENAME = "Digimon_World/Digimon World Data Sheet.xlsx"
 
+_item_data = pd.read_excel(DATA_FILENAME, sheet_name="Items")
+# The item sheet groups food under sorting value 2.
+FOOD_ITEMS = tuple(_item_data.loc[_item_data["Sorting Value"] == 2, "Name"].dropna().unique())
+
 ITEMS = (
-    pd.read_excel(DATA_FILENAME, sheet_name="Items")[["ID", "Name"]]
+    _item_data[["ID", "Name"]]
     .assign(ID=lambda df: pd.to_numeric(df["ID"], errors="coerce"))
     .dropna(subset=["ID"])
     .assign(ID=lambda df: df["ID"].astype(int))
@@ -127,6 +131,8 @@ ADDRESSES = {
     "Frames Since Hooked":   {"address": "PSXBaseAddress+0007B484", "type": "4 Bytes"},
     "Nibble Time":           {"address": "PSXBaseAddress+0007B49C", "type": "4 Bytes"},
     "Tension Bar":           {"address": "PSXBaseAddress+0007B504", "type": "4 Bytes"},
+
+    "Curling Power":         {"address": "PSXBaseAddress+0013523E", "type": "2 Bytes"},
 
     "Current Screen ID":     {"address": "PSXBaseAddress+00134DA8", "type": "Byte"},
     "RNG":                   {"address": "PSXBaseAddress+00009010", "type": "4 Bytes"},

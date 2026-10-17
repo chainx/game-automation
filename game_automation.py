@@ -2,7 +2,6 @@ import time
 import sys
 import copy
 from pynput.keyboard import Key, Controller, Listener
-from ewmh import EWMH
 import pyautogui
 from PIL import Image
 
@@ -14,16 +13,33 @@ else:
 keyboard = Controller()
 
 class game_automation:
-    def __init__(self):
+    def __init__(self, state_defaults=None, state_choices=None):
         self.execution_key = Key.f10
         self.reload_key = Key.f3
         self.print_game_state_at_end = False
         self.execute_script = False
+        self.stop_reason = ""
         self.has_desynced = False
         self.has_previously_desynced = False
         self.count = 0 # Counts number of cycles executed
         self.keys_to_hold = []
         self.keys_not_reset_after_desync = []
+        self.state_defaults = copy.deepcopy(state_defaults or {})
+        self.state_choices = copy.deepcopy(state_choices or {})
+        for name, choices in self.state_choices.items():
+            if name not in self.state_defaults or not isinstance(choices, (list, tuple)) or not choices:
+                raise ValueError(f"Choices require a declared setting and a non-empty list or tuple: {name}")
+            if any(type(choice) not in (str, int, float, bool) for choice in choices):
+                raise ValueError(f"Choices must be strings, numbers or booleans: {name}")
+            if len(set(map(str, choices))) != len(choices):
+                raise ValueError(f"Choices must have unique display values: {name}")
+            if not any(type(choice) is type(self.state_defaults[name]) and choice == self.state_defaults[name]
+                       for choice in choices):
+                raise ValueError(f"Default must be one of the choices: {name}")
+        for name, value in self.state_defaults.items():
+            if not isinstance(name, str) or not name.isidentifier() or name.startswith("_") or hasattr(self, name):
+                raise ValueError(f"Invalid or reserved state variable: {name}")
+            setattr(self, name, copy.deepcopy(value))
 
     def main(self): 
         pass # Overwritten by parent class
@@ -35,10 +51,29 @@ class game_automation:
         if key == self.execution_key:
             self.execute_script = not self.execute_script
 
-    def run_script(self, keys_to_hold=None):
-        listener = Listener(on_press=self.on_press)
-        listener.start()
-        while True:
+    def run_automations(self, functions):
+        """Open a selector for bound automation methods and their keyword arguments."""
+        from gui import AutomationGUI
+        AutomationGUI(self, functions).run()
+
+    def run_script(self, keys_to_hold=None, *, automation=None, kwargs=None,
+                   stop_event=None, listen=True):
+        if keys_to_hold is not None:
+            self.keys_to_hold = keys_to_hold
+        listener = Listener(on_press=self.on_press) if listen else None
+        if listener:
+            listener.start()
+        try:
+            self._run_loop(automation or self.main, kwargs or {}, stop_event)
+        finally:
+            self.execute_script = False
+            for key in self.keys_to_hold:
+                keyboard.release(key)
+            if listener:
+                listener.stop()
+
+    def _run_loop(self, automation, kwargs, stop_event):
+        while stop_event is None or not stop_event.is_set():
             if self.execute_script:
 
                 # Used to hold a button down during a cycle
@@ -46,11 +81,11 @@ class game_automation:
                     keyboard.press(key)
                 
                 original_state = copy.deepcopy(self.__dict__)
-                self.main()
+                automation(**kwargs)
                 if self.has_desynced and self.execute_script:
                     print('Desync detected!')
                     for k, v in original_state.items():
-                        if k not in self.keys_not_reset_after_desync:
+                        if k not in self.keys_not_reset_after_desync and k != "execute_script":
                             self.__dict__[k] = copy.deepcopy(v)
                     self.has_desynced = False
                     self.has_previously_desynced = True
@@ -66,6 +101,8 @@ class game_automation:
                 if self.print_game_state_at_end:
                     self.print_game_state()
                 self.count = 0
+            else:
+                time.sleep(0.02)
 
     # ================   AUTOMATION OF INPUTS   ==================
 

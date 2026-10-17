@@ -50,13 +50,24 @@ and decide which inventory items to keep.
 - game-specific code may validate progress using memory reads, screenshots, or
   OCR before continuing.
 
-The game scripts subclass `game_automation` and select the active routine in
-their class-level `main()` method.
+The game scripts subclass `game_automation`. Digimon World opens a GUI to select
+fishing, farming, tournament grinding, or curling and enter the selected routine's
+arguments. Stop a routine before selecting another. Makai Kingdom continues to
+use its class-level `main()` method.
 
 ## Running
 
 Run commands from the repository root because several data and image paths are
 relative to it.
+
+Install dependencies into your Python installation with:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+Use `python -m pip` with the same interpreter that runs the scripts; a standalone
+`pip` command may belong to another Python installation.
 
 For Digimon World, start the configured emulator and game first, then run:
 
@@ -78,7 +89,70 @@ game at the routine's expected starting point, and press `F10` to begin. Press
 ## Adding a routine
 
 Add a method to the relevant game class, compose its inputs with
-`execute_inputs()`, and call it from that class's `main()` method. Use
+`execute_inputs()`, and register bound methods with the GUI runner:
+
+```python
+game.run_automations([game.fishing, game.farming, game.tournament_grind, game.curling])
+```
+
+`gui.py` builds fields from each function's signature and calls it with `**kwargs`.
+It displays the selected function's docstring as its description, or a fallback
+message if none is provided. Add a docstring to any registered automation to
+describe its purpose and starting requirements without modifying the GUI.
+Wrap description text in `**double asterisks**` to display it in bold.
+
+To expose game-wide instance settings, pass a dictionary of defaults to the base
+class constructor. It initializes the corresponding `self` attributes and the
+shared GUI builds a **Global settings** tab automatically:
+
+```python
+class MyGame(game_automation):
+    def __init__(self):
+        super().__init__(state_defaults={
+            "food_preference": "Sirloin",
+            "backup_food_preference": "Chain melon",
+            "verbose": False,
+        })
+```
+
+Do not reassign those defaults later in the constructor. Use the attributes as
+normal inside routines, such as `self.food_preference`. Register only settings
+that users should edit, not live memory values, process handles, or runner control
+flags. Names must be public Python identifiers and must not collide with existing
+base attributes or methods. Calling `super().__init__()` without a dictionary
+continues to work and adds no settings tab.
+
+Settings use the default's type for validation; booleans get a dropdown, while
+strings, numbers and containers use text fields. All inputs are validated before
+any settings are applied. Settings apply at the start of each run, stay selected
+when switching automations, and cannot be edited during a run. **Restore defaults**
+resets the form; blank fields also use their declared defaults. Changes last for
+the GUI session only and are not saved to disk. Routine arguments remain separate
+from global settings, even if they share a name.
+
+For reusable dropdowns, pass an optional `state_choices` dictionary alongside
+`state_defaults`:
+
+```python
+super().__init__(
+    state_defaults={"food_preference": "Sirloin"},
+    state_choices={"food_preference": ["Meat", "Giant Meat", "Sirloin", "Chain melon"]},
+)
+```
+
+Each choices list must be non-empty and include its setting's default. The shared
+GUI displays a dropdown and validates the selected value. Digimon World's two
+food preferences use food names from its item spreadsheet; the GUI contains no
+game-specific food lists.
+
+Required arguments must be entered; blank optional fields use their defaults.
+Enter text directly (for example, `Black trout`), numbers as `10` or `0.5`,
+booleans as `True`/`False`, and containers as Python literals. A function accepting
+`**kwargs` gets an additional dictionary field. Positional-only parameters and
+`*args` are unsupported. Tkinter must be installed with Python.
+
+The GUI runs routines in a background thread. F10 stops execution cooperatively;
+switching routines or closing waits for the current routine to return. Use
 `self.execute_script` to allow clean cancellation and set
 `self.has_desynced = True` when a state check fails.
 

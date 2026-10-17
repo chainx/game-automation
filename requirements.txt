@@ -1,9 +1,11 @@
 pandas
+openpyxl
+numpy
 psutil
 pynput
 pyautogui
 pillow
-ewmh
+ewmh; sys_platform == "linux"
 pytesseract
 fuzzywuzzy
 python-Levenshtein
