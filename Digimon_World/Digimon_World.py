@@ -6,7 +6,7 @@ from pynput.keyboard import Key
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from game_automation import game_automation, keyboard
 
-from memory_scan import get_address_value, attach_process
+from memory_scan import get_address_value, wait_for_process
 from data import ADDRESSES, ITEMS, LOCATIONS, ID_TO_NAME, FOOD_ITEMS
 
 MEMORY_CARD_LOCATION = Path("D:/Gaming/Emulators/PS1/cards/epsxe000.mcr")
@@ -15,8 +15,8 @@ def main():
     digimon_world = Digimon_World()
     try:
         digimon_world.run_automations([
-            digimon_world.fishing,
             digimon_world.farming,
+            digimon_world.fishing,
             digimon_world.tournament_grind,
             digimon_world.curling,
         ])
@@ -24,6 +24,14 @@ def main():
         digimon_world.close()
 
 class Digimon_World(game_automation):
+    default_logging_fields = {
+        **game_automation.default_logging_fields,
+        "location": ("location_ID",),
+        "location_name": ("location_name",),
+        "expected_location": ("destination_ID",),
+        "bits": ("bits",),
+        "needs_scolding": ("address_values", "Needs scolding"),
+    }
 
     def main(self):
         # self.fishing(fish_type="Black trout") # Digianchovy, Black trout, Digiseabass, Digicatfish
@@ -60,7 +68,7 @@ class Digimon_World(game_automation):
         })
         self.reload_key = Key.f1
         self.address_values = {key: None for key in ADDRESSES}
-        self.process, self.psx_base = attach_process()
+        self.process, self.psx_base = wait_for_process(retry_interval=3)
         self._closed = False
         print("Ready to run!")
 
@@ -313,27 +321,42 @@ class Digimon_World(game_automation):
                 return
 
     def execute_task(self, task):
-        if isinstance(task, tuple):
-            task, args = task[0], task[1]
-            if isinstance(args, dict):
-                task(**args)
+        try:
+            if isinstance(task, tuple):
+                task, args = task[0], task[1]
+                if isinstance(args, dict):
+                    task(**args)
+                else:
+                    args = (args,) if not isinstance(args, (list, tuple)) else args
+                    task(*args)
             else:
-                args = (args,) if not isinstance(args, (list, tuple)) else args
-                task(*args)
-        else:
-            task()
+                task()
+        except Exception as error:
+            self._finish_task(f"{type(error).__name__}: {error}")
+            raise
+
+    def expect_transition(self, destination_id, *, allow_already_arrived=False):
+        """Declare whether a task requires observing the transition itself."""
+        self.destination_ID = destination_id
+        self._allow_already_arrived = allow_already_arrived
 
     def waiting(self):
+        try:
+            self._check_task_transition()
+        except Exception as error:
+            self._finish_task(f"Transition check raised {type(error).__name__}: {error}")
+            raise
+        self._finish_task("Task desynced" if self.has_desynced else None)
+
+    def _check_task_transition(self):
         if self.destination_ID and not self.has_desynced:
             self.update_game_state()
             if self.location_ID!=self.destination_ID:
                 self.wait_for_screen_transition(self.destination_ID)
-            else:
+            elif not getattr(self, "_allow_already_arrived", False):
                 print(f"{self.task_name} executed too late", self.location_ID)
                 self.has_desynced = True
             if self.has_desynced: 
-                if self.task_name == "go_to_tournament":
-                    self.has_rng_desynced = True
                 return
             self.destination_ID = None
 
@@ -343,7 +366,7 @@ class Digimon_World(game_automation):
             time.sleep(0.1) # Check for update every 0.1 seconds
             self.update_game_state()
             count+=1
-            if count == 25 and not wait_indefinitely: # Wait at most 2.5 seconds
+            if count >= 25 and self.location_ID != destination_ID and not wait_indefinitely:
                 print("Didn't reach screen transition")
                 self.has_desynced = True
                 return
@@ -538,9 +561,20 @@ class Digimon_World(game_automation):
         self.execute_inputs(["z", ("z",0.5), ("z",0.5), ("z",1.5)])
 
     def auto_pilot_home(self):
+        previous_task = getattr(self, "task_name", "unknown")
         self.task_name = "auto_pilot_home"
-        self.destination_ID = 179
+        self.expect_transition(179, allow_already_arrived=True)
+        logging_fields = {}
+        for item in ("Auto Pilot", "Meat", "Port. potty", "med.recovery", "S.Def.disk"):
+            logging_fields[item] = ("inventory", item)
+        self.start_task_diagnostics("Auto Pilot", logging_fields=logging_fields,
+                                    previous_task=previous_task, cycle=self.count + 1)
+        self.update_game_state()
+        self.record_task_state("before use")
         self.use_item("Auto Pilot")
+        # use_item already refreshes state after its input sequence.
+        self.record_task_state("after use_item")
+        # Allow a distant partner time to approach before checking arrival.
         time.sleep(1)
 
     def sell_goodies_and_stock_up(self):
@@ -680,7 +714,12 @@ class Digimon_World(game_automation):
         self.initial_address_values = copy.deepcopy(self.address_values)
         self.execute_inputs([(Key.left, .5), ((Key.up,Key.left), 1.1), ((Key.up,Key.right), .8), (Key.right,3)])
 
+    def _finish_tournament_travel(self, reason):
+        if self.has_desynced:
+            self.has_rng_desynced = True
+
     def go_to_tournament(self):
+        self.on_task_finished(self._finish_tournament_travel)
         self.task_name = "go_to_tournament"
         self.destination_ID = 223
         if self.has_rng_desynced:

@@ -35,10 +35,31 @@ def attach_process(target="psxfin.exe", verbose=False):
     if verbose:
         print(f"Found {target} with PID {pid}")
     process = open_process(pid)
-    psx_base = get_psx_base(process, verbose=verbose)
+    try:
+        psx_base = get_psx_base(process, verbose=verbose)
+    except BaseException:
+        # Failed scans and cancellation must not leak a handle on each retry.
+        Kernel.CloseHandle(process)
+        raise
     if verbose:
         print(f"PSX base: 0x{psx_base:08X}")
     return process, psx_base
+
+
+def wait_for_process(target="psxfin.exe", retry_interval=3, verbose=False):
+    """Retry attachment until the emulator and game RAM are available.
+
+    Wait retry_interval seconds after each failed attempt. Ctrl+C cancels.
+    """
+    if retry_interval <= 0:
+        raise ValueError("retry_interval must be positive")
+    while True:
+        try:
+            return attach_process(target=target, verbose=verbose)
+        except (RuntimeError, OSError) as error:
+            print(f"Waiting for {target} / game to be ready: {error}. "
+                  f"Retrying in {retry_interval:g} seconds (Ctrl+C to cancel).", flush=True)
+            time.sleep(retry_interval)
 
 def pid_by_name(name):
     name = name.lower()

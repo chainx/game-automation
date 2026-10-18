@@ -171,6 +171,35 @@ def my_routine(self):
 Start with conservative timing. Emulator speed, frame limiting, focus, display
 scaling, and input mappings can all affect a sequence.
 
+Tasks can buffer failure-only diagnostics using the shared base class:
+
+```python
+self.start_task_diagnostics("My task", logging_fields={
+    "bits": ("bits",),
+    "bait": ("inventory", "Meat"),
+}, cycle=self.count + 1)
+self.record_task_state("before inputs")
+```
+
+Paths traverse instance attributes and dictionary keys. Snapshots copy cached
+values. `logging_fields` is optional and extends or overrides the class's
+`default_logging_fields`. The base class includes execution and desync flags;
+Digimon World adds location, destination, bits, and scolding state by default.
+Each game can extend the defaults without changing the shared logger.
+Snapshots capture cached
+values without reading emulator memory; missing values appear as `None`. The task
+executor calls `_finish_task(reason)` after the task and transition check, printing
+snapshots only on failure and discarding them on success. Other executors can use
+the same lifecycle. `on_task_finished(callback)` remains available for task-specific
+completion behavior alongside diagnostics.
+
+Digimon World tasks can call `expect_transition(destination_id,
+allow_already_arrived=True)` when reaching the destination during their input or
+settling delay is acceptable. Auto Pilot uses this with its one-second partner
+settling delay. The setting resets on task completion; other tasks retain strict
+transition timing. If arrival has not happened yet, the existing transition wait
+still applies.
+
 ## Project status
 
 The repository is under active personal development. Automated tests, stable

@@ -13,6 +13,11 @@ else:
 keyboard = Controller()
 
 class game_automation:
+    default_logging_fields = {
+        "executing": ("execute_script",),
+        "desynced": ("has_desynced",),
+    }
+
     def __init__(self, state_defaults=None, state_choices=None):
         self.execution_key = Key.f10
         self.reload_key = Key.f3
@@ -40,6 +45,56 @@ class game_automation:
             if not isinstance(name, str) or not name.isidentifier() or name.startswith("_") or hasattr(self, name):
                 raise ValueError(f"Invalid or reserved state variable: {name}")
             setattr(self, name, copy.deepcopy(value))
+
+    def on_task_finished(self, callback):
+        """Register a one-shot callback receiving a failure reason or None."""
+        self._task_finished_callback = callback
+
+    def start_task_diagnostics(self, label, logging_fields=None, **context):
+        """Buffer selected attribute/dictionary paths for failure-only logging.
+
+        logging_fields extends or overrides the game's default_logging_fields.
+        Example: logging_fields={"items": ("inventory", "Meat")}.
+        Call record_task_state at useful checkpoints and _finish_task on completion.
+        """
+        self._task_diagnostics = {
+            "label": label,
+            "logging_fields": copy.deepcopy({**self.default_logging_fields, **(logging_fields or {})}),
+            "context": copy.deepcopy(context),
+            "started": time.monotonic(), "snapshots": [],
+        }
+
+    def record_task_state(self, stage):
+        """Snapshot cached state without additional game reads or output."""
+        diagnostics = getattr(self, "_task_diagnostics", None)
+        if diagnostics is None:
+            return
+        snapshot = {"stage": stage, "elapsed": round(time.monotonic() - diagnostics["started"], 3)}
+        for label, path in diagnostics["logging_fields"].items():
+            value = self
+            for key in path:
+                value = value.get(key) if isinstance(value, dict) else getattr(value, key, None)
+            snapshot[label] = copy.deepcopy(value)
+        diagnostics["snapshots"].append(snapshot)
+
+    def _finish_task(self, reason=None):
+        """Finish diagnostics and callbacks exactly once for any task."""
+        diagnostics = getattr(self, "_task_diagnostics", None)
+        callback = getattr(self, "_task_finished_callback", None)
+        self._task_finished_callback = None
+        self._allow_already_arrived = False
+        try:
+            if diagnostics is not None and reason is not None:
+                self.record_task_state("failure")
+                print(f"[{diagnostics['label']} failure] {reason}; "
+                      f"context={diagnostics['context']}; "
+                      f"elapsed={time.monotonic() - diagnostics['started']:.3f}s", flush=True)
+                for snapshot in diagnostics["snapshots"]:
+                    print(f"  {snapshot}", flush=True)
+        finally:
+            self._task_diagnostics = None
+        if callback is not None:
+            callback(reason)
 
     def main(self): 
         pass # Overwritten by parent class
